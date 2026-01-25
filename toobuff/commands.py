@@ -329,24 +329,45 @@ def checkin_command():
             default=1
         )
         
-        primary_lift = click.prompt(
-            "What was your primary lift? (squat/bench/deadlift)",
-            type=click.Choice(["squat", "bench", "deadlift"], case_sensitive=False),
-            default="squat"
-        ).lower()
+        primary_lifts = {}
+        lift_options = ["squat", "bench", "deadlift"]
         
-        weights_str = click.prompt(
-            "What weights did you use? (e.g., '135x5, 185x5, 225x3' or '90kgx5')",
-            default=""
-        )
-        
-        weights_sets = parse_weights(weights_str) if weights_str else []
+        while True:
+            lift = click.prompt(
+                "What lift did you do? (squat/bench/deadlift, or 'done' to finish)",
+                type=click.Choice(lift_options + ["done"], case_sensitive=False),
+                default="squat"
+            ).lower()
+            
+            if lift == "done":
+                if not primary_lifts:
+                    click.echo("Please add at least one lift.")
+                    continue
+                break
+            
+            weights_str = click.prompt(
+                f"What weights did you use for {lift}? (e.g., '170x5' or '90kgx5')",
+                default=""
+            )
+            
+            if weights_str:
+                weights_sets = parse_weights(weights_str)
+                if weights_sets:
+                    # For now, use the first set's weight and reps
+                    # If multiple sets, we could aggregate or ask which one
+                    primary_lifts[lift] = {
+                        "weight": weights_sets[0]["weight"],
+                        "reps": weights_sets[0]["reps"]
+                    }
+                else:
+                    click.echo("Invalid weight format. Skipping this lift.")
+            else:
+                click.echo("No weights entered. Skipping this lift.")
         
         checkin["workout"] = {
             "week": workout_week,
             "day": workout_day,
-            "primary_lift": primary_lift,
-            "weights": weights_sets
+            "primary_lifts": primary_lifts
         }
     else:
         checkin["workout"] = None
