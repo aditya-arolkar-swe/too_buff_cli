@@ -1,12 +1,13 @@
-# Too Buff CLI
+<p align="center">
+<img width="250" height="250" alt="too_buff_logo" src="https://github.com/user-attachments/assets/695d80df-b8b2-4ecd-9007-25e57834c4ea" />
+</p>
 
-Install this CLI if you want to get "Too Buff" 💪🏽
+# Too Buff CLI
+Install this software if you want to get [Too Buff](https://www.amazon.com/Speaking-Strangers-Pathetic-Elephant-Calendar/dp/B096CKK9DX) 💪🏽
 
 ## Installation
 
-### Quick Install (Recommended)
-
-Install `toobuff` with a single command:
+Install with:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/aditya-arolkar-swe/too_buff_cli/main/install.sh | bash
