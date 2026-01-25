@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "toobuff"
+version = "0.1.0"
+description = "A CLI tool for tracking fitness goals and daily check-ins"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+click = "^8.0.0"
+platformdirs = "^3.0.0"
+
+[tool.poetry.scripts]
+toobuff = "toobuff.cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
