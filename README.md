@@ -1,71 +1,24 @@
 # Too Buff CLI
 
-This year I got an amazing christmas gift from my sister: the book ["How to Make Friends When You're Too Buff: tricks to speaking to puny strangers and not making them feel pathetic"](https://www.amazon.com/Speaking-Strangers-Pathetic-Elephant-Calendar/dp/B096CKK9DX). It's just a weekly workout log and planner, but the gag title put a smile on my face and probably yours too. 
-
-I've been logging into it daily which has been quite helpful to ensure I track my weekly goals in nutrition, sleep, weightlifting frequency, steps and cardio time. 
-
-While it's been helpful, it's easy to see that the best tool for the numeric aspects of the goals were computers and code over pen and paper. This is my attempt to formalize the log into a CLI tool that will help me see bigger picture things easily like: 
- - how my bench, squat or deadlift weight has tracked over time
- - how my sleep debt stacks up (total actual amount slept vs. goal sleep hours) over many months
- - weekly summaries sent to email that stack up how you fared against your goals (TBA) 
+Install this CLI if you want to get "Too Buff" 💪🏽
 
 ## Installation
 
-### Option 1: Using Poetry (Recommended)
+### Quick Install (Recommended)
 
-This project uses [Poetry](https://python-poetry.org/) for dependency management:
+Install `toobuff` with a single command:
 
 ```bash
-# Install Poetry if you don't have it
-curl -sSL https://install.python-poetry.org | python3 -
+curl -fsSL https://raw.githubusercontent.com/aditya-arolkar-swe/too_buff_cli/main/install.sh | bash
+```
 
-# Install dependencies and the CLI
-poetry install
+After installation, you can use `toobuff` from anywhere:
 
-# Run commands using Poetry (no activation needed)
-poetry run toobuff init
-
-# Or activate the Poetry shell (spawns a new shell with env activated)
-poetry shell
+```bash
 toobuff init
-
-# Note: Poetry cannot modify your current shell's environment directly.
-# Use `poetry shell` to get an activated shell, or `poetry run <command>` 
-# to run commands without activation.
+toobuff checkin
+toobuff data
 ```
-
-### Option 2: Using pipx (For end users)
-
-`pipx` is great for installing CLI applications without Poetry:
-
-```bash
-# Install pipx if you don't have it
-brew install pipx
-
-# Install toobuff
-pipx install .
-
-# Or install from a built wheel
-poetry build
-pipx install dist/toobuff-*.whl
-```
-
-### Option 3: Using a Virtual Environment (Alternative)
-
-If you prefer traditional venv:
-
-```bash
-# Create a virtual environment
-python3 -m venv venv
-
-# Activate it
-source venv/bin/activate
-
-# Install dependencies
-pip install -e .
-```
-
-After installation, the `toobuff` command will be available in your PATH.
 
 ## Usage
 
@@ -118,19 +71,20 @@ Shows a summary of your recorded data including:
 - Wake up time adherence
 - Weekly summaries
 
+## Background and Motivation
+
+This year I got an amazing christmas gift from my sister: the book ["How to Make Friends When You're Too Buff: tricks to speaking to puny strangers and not making them feel pathetic"](https://www.amazon.com/Speaking-Strangers-Pathetic-Elephant-Calendar/dp/B096CKK9DX). It's just a weekly workout log and planner, but the gag title put a smile on my face and probably yours too. 
+
+I've been logging into it daily which has been quite helpful to ensure I track my weekly goals in nutrition, sleep, weightlifting frequency, steps and cardio time. 
+
+While it's been helpful, it's easy to see that the best tool for the numeric aspects of the goals were computers and code over pen and paper. This is my attempt to formalize the log into a CLI tool that will help me see bigger picture things easily like: 
+ - how my bench, squat or deadlift weight has tracked over time
+ - how my sleep debt stacks up (total actual amount slept vs. goal sleep hours) over many months
+ - weekly summaries sent to email that stack up how you fared against your goals (TBA) 
+
 ## Data Storage
 
-All data is stored locally following platform conventions:
-- **Config file**: Stored in platform-specific config directory
-  - Linux: `~/.config/toobuff/config.json`
-  - macOS: `~/Library/Application Support/toobuff/config.json`
-  - Windows: `%APPDATA%\toobuff\config.json`
-- **Data file**: Stored in platform-specific data directory
-  - Linux: `~/.local/share/toobuff/data.json`
-  - macOS: `~/Library/Application Support/toobuff/data.json`
-  - Windows: `%APPDATA%\toobuff\data.json`
-
-The tool uses the `platformdirs` library to automatically handle platform-specific paths, following XDG Base Directory specifications and OS conventions.
+All data is stored locally on your machine. Use `toobuff datafile` to see where your data is stored.
 
 ## License
 

@@ -2,9 +2,24 @@
 name = "toobuff"
 version = "0.1.0"
 description = "A CLI tool for tracking fitness goals and daily check-ins"
-authors = ["Your Name <you@example.com>"]
+authors = ["Aditya Arolkar <aditya.arolkar@berkeley.edu>"]
 readme = "README.md"
 license = "MIT"
+homepage = "https://github.com/aditya-arolkar-swe/too_buff_cli"
+repository = "https://github.com/aditya-arolkar-swe/too_buff_cli"
+keywords = ["fitness", "workout", "cli", "tracking", "health", "gym"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
