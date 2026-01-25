@@ -1,6 +1,13 @@
 # Too Buff CLI
 
-A command-line tool for tracking your fitness goals and daily check-ins, inspired by the "How to Make Friends When You're Too Buff" weekly planner.
+This year I got an amazing christmas gift from my sister: the book ["How to Make Friends When You're Too Buff: tricks to speaking to puny strangers and not making them feel pathetic"](https://www.amazon.com/Speaking-Strangers-Pathetic-Elephant-Calendar/dp/B096CKK9DX). It's just a weekly workout log and planner, but the gag title put a smile on my face and probably yours too. 
+
+I've been logging into it daily which has been quite helpful to ensure I track my weekly goals in nutrition, sleep, weightlifting frequency, steps and cardio time. 
+
+While it's been helpful, it's easy to see that the best tool for the numeric aspects of the goals were computers and code over pen and paper. This is my attempt to formalize the log into a CLI tool that will help me see bigger picture things easily like: 
+ - how my bench, squat or deadlift weight has tracked over time
+ - how my sleep debt stacks up (total actual amount slept vs. goal sleep hours) over many months
+ - weekly summaries sent to email that stack up how you fared against your goals (TBA) 
 
 ## Installation
 

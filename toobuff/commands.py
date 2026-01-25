@@ -1,7 +1,7 @@
 """CLI commands implementation."""
 
 import click
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import subprocess
 import sys
 import re
@@ -59,10 +59,167 @@ def parse_time(time_str: str) -> time:
         raise click.BadParameter("Time must be in HH:MM format (e.g., 06:30)")
 
 
+def parse_weights(weights_str: str) -> list:
+    """Parse weights string into list of {weight, reps} dicts.
+    
+    Supports formats:
+    - "170x5" (assumed lbs)
+    - "90kgx5" (converts kg to lbs)
+    - "135x5, 185x5, 225x3" (multiple sets)
+    
+    Always returns weight in lbs.
+    """
+    if not weights_str or not weights_str.strip():
+        return []
+    
+    KG_TO_LBS = 2.20462
+    sets = []
+    
+    # Split by comma to handle multiple sets
+    for set_str in weights_str.split(","):
+        set_str = set_str.strip()
+        if not set_str:
+            continue
+        
+        # Normalize to lowercase for parsing
+        set_str_lower = set_str.lower()
+        
+        # Check if it's in kg format
+        if "kg" in set_str_lower:
+            # Remove "kg" and parse (case-insensitive)
+            set_str_clean = set_str_lower.replace("kg", "").strip()
+            try:
+                # Split on 'x' (case-insensitive by normalizing to lowercase)
+                parts = set_str_clean.split("x")
+                if len(parts) != 2:
+                    raise ValueError("Invalid format")
+                weight_str, reps_str = parts
+                weight_kg = float(weight_str.strip())
+                weight_lbs = weight_kg * KG_TO_LBS
+                reps = int(reps_str.strip())
+                sets.append({"weight": round(weight_lbs, 2), "reps": reps})
+            except (ValueError, IndexError):
+                raise click.BadParameter(f"Invalid weight format: {set_str}. Use 'weightxreps' or 'weightkgxreps' (e.g., '170x5' or '90kgx5')")
+        else:
+            # Assume lbs format - normalize to lowercase for splitting
+            set_str_normalized = set_str.lower()
+            try:
+                # Split on 'x' (case-insensitive by normalizing to lowercase)
+                parts = set_str_normalized.split("x")
+                if len(parts) != 2:
+                    raise ValueError("Invalid format")
+                weight_str, reps_str = parts
+                weight_lbs = float(weight_str.strip())
+                reps = int(reps_str.strip())
+                sets.append({"weight": round(weight_lbs, 2), "reps": reps})
+            except (ValueError, IndexError):
+                raise click.BadParameter(f"Invalid weight format: {set_str}. Use 'weightxreps' or 'weightkgxreps' (e.g., '170x5' or '90kgx5')")
+    
+    return sets
+
+
 def get_week_number(date: datetime) -> str:
     """Get the week identifier (YYYY-WW format)."""
     year, week, _ = date.isocalendar()
     return f"{year}-W{week:02d}"
+
+
+def get_week_start(date: datetime) -> datetime:
+    """Get the Monday (start) of the week for a given date."""
+    # isocalendar() returns (year, week, weekday) where Monday=1, Sunday=7
+    _, _, weekday = date.isocalendar()
+    days_since_monday = weekday - 1
+    week_start = date - timedelta(days=days_since_monday)
+    return week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def get_week_end(date: datetime) -> datetime:
+    """Get the Sunday (end) of the week for a given date."""
+    week_start = get_week_start(date)
+    week_end = week_start + timedelta(days=6)
+    return week_end.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+
+def format_week_header(year: int, week: int, week_start: datetime, week_end: datetime) -> str:
+    """Format week header as 'YYYY Week W: Mon DDth -> Sun DDth'."""
+    start_month = week_start.strftime("%b")
+    start_day = week_start.day
+    start_suffix = "th" if 10 <= start_day % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(start_day % 10, "th")
+    
+    end_month = week_end.strftime("%b")
+    end_day = week_end.day
+    end_suffix = "th" if 10 <= end_day % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(end_day % 10, "th")
+    
+    return f"{year} Week {week}: {start_month} {start_day}{start_suffix} -> {end_month} {end_day}{end_suffix}"
+
+
+def calculate_weekly_summaries(checkins: list, config: dict) -> dict:
+    """Calculate weekly summaries from checkins at runtime."""
+    weeks = {}
+    
+    for checkin in checkins:
+        checkin_date = datetime.fromisoformat(checkin["timestamp"])
+        week_id = get_week_number(checkin_date)
+        
+        if week_id not in weeks:
+            weeks[week_id] = {
+                "year": checkin_date.year,
+                "week": checkin_date.isocalendar()[1],
+                "week_start": get_week_start(checkin_date),
+                "week_end": get_week_end(checkin_date),
+                "protein_total": 0.0,
+                "protein_days": 0,
+                "sleep_total": 0.0,
+                "sleep_days": 0,
+                "calories_total": 0,
+                "calories_days": 0,
+                "cardio_total_minutes": 0,
+                "steps_total": 0,
+                "steps_days": 0,
+                "wake_up_adherence": 0,
+                "wake_up_total": 0
+            }
+        
+        week_data = weeks[week_id]
+        
+        # Update sleep
+        if checkin.get("sleep_hours"):
+            week_data["sleep_total"] += checkin["sleep_hours"]
+            week_data["sleep_days"] += 1
+        
+        # Update cardio
+        if checkin.get("cardio") and checkin["cardio"].get("duration_minutes"):
+            week_data["cardio_total_minutes"] += checkin["cardio"]["duration_minutes"]
+        
+        # Update wake up time adherence
+        if checkin.get("wake_up_time") and config.get("wake_up_time_goal"):
+            try:
+                wake_time = parse_time(checkin["wake_up_time"])
+                goal_time = parse_time(config["wake_up_time_goal"])
+                wake_diff = abs((wake_time.hour * 60 + wake_time.minute) - 
+                               (goal_time.hour * 60 + goal_time.minute))
+                if wake_diff <= 30:
+                    week_data["wake_up_adherence"] += 1
+                week_data["wake_up_total"] += 1
+            except:
+                pass
+        
+        # Update protein
+        if checkin.get("protein"):
+            week_data["protein_total"] += checkin["protein"]
+            week_data["protein_days"] += 1
+        
+        # Update calories
+        if checkin.get("calories"):
+            week_data["calories_total"] += checkin["calories"]
+            week_data["calories_days"] += 1
+        
+        # Update steps
+        if checkin.get("steps"):
+            week_data["steps_total"] += checkin["steps"]
+            week_data["steps_days"] += 1
+    
+    return weeks
 
 
 @click.command()
@@ -178,16 +335,18 @@ def checkin_command():
             default="squat"
         ).lower()
         
-        weights = click.prompt(
-            "What weights did you use? (e.g., '135x5, 185x5, 225x3')",
+        weights_str = click.prompt(
+            "What weights did you use? (e.g., '135x5, 185x5, 225x3' or '90kgx5')",
             default=""
         )
+        
+        weights_sets = parse_weights(weights_str) if weights_str else []
         
         checkin["workout"] = {
             "week": workout_week,
             "day": workout_day,
             "primary_lift": primary_lift,
-            "weights": weights
+            "weights": weights_sets
         }
     else:
         checkin["workout"] = None
@@ -218,71 +377,23 @@ def checkin_command():
     else:
         checkin["cardio"] = None
     
-    # Add checkin to data
-    if "checkins" not in data:
-        data["checkins"] = []
-    data["checkins"].append(checkin)
-    
-    # Update weekly data
-    checkin_date = datetime.fromisoformat(checkin["timestamp"])
-    week_id = get_week_number(checkin_date)
-    
-    if "weeks" not in data:
-        data["weeks"] = {}
-    
-    if week_id not in data["weeks"]:
-        data["weeks"][week_id] = {
-            "protein_total": 0.0,
-            "protein_days": 0,
-            "sleep_total": 0.0,
-            "sleep_days": 0,
-            "calories_total": 0,
-            "calories_days": 0,
-            "cardio_total_minutes": 0,
-            "steps_total": 0,
-            "steps_days": 0,
-            "wake_up_adherence": 0,
-            "wake_up_total": 0
-        }
-    
-    week_data = data["weeks"][week_id]
-    
-    # Update sleep
-    week_data["sleep_total"] += sleep_hours
-    week_data["sleep_days"] += 1
-    
-    # Update cardio
-    if checkin["cardio"]:
-        week_data["cardio_total_minutes"] += checkin["cardio"]["duration_minutes"]
-    
-    # Update wake up time adherence
-    wake_time = parse_time(checkin["wake_up_time"])
-    goal_time = parse_time(config["wake_up_time_goal"])
-    # Allow 30 minutes tolerance
-    wake_diff = abs((wake_time.hour * 60 + wake_time.minute) - 
-                    (goal_time.hour * 60 + goal_time.minute))
-    if wake_diff <= 30:
-        week_data["wake_up_adherence"] += 1
-    week_data["wake_up_total"] += 1
-    
     # Ask for daily nutrition/steps if available
     if click.confirm("Do you want to record today's protein intake?", default=False):
         protein = click.prompt("Protein (grams)", type=float, default=0.0)
-        week_data["protein_total"] += protein
-        week_data["protein_days"] += 1
         checkin["protein"] = protein
     
     if click.confirm("Do you want to record today's calorie intake?", default=False):
         calories = click.prompt("Calories", type=int, default=0)
-        week_data["calories_total"] += calories
-        week_data["calories_days"] += 1
         checkin["calories"] = calories
     
     if click.confirm("Do you want to record today's steps?", default=False):
         steps = click.prompt("Steps", type=int, default=0)
-        week_data["steps_total"] += steps
-        week_data["steps_days"] += 1
         checkin["steps"] = steps
+    
+    # Add checkin to data
+    if "checkins" not in data:
+        data["checkins"] = []
+    data["checkins"].append(checkin)
     
     save_data(data)
     click.echo(f"\n{style_success('✓ Check-in recorded successfully!')}")
@@ -317,7 +428,8 @@ def datafile_command():
 
 
 @click.command()
-def data_command():
+@click.option('-v', '--verbose', is_flag=True, help='Show data file location and directory paths.')
+def data_command(verbose):
     """Print a summary of the data you've recorded so far."""
     config = load_config()
     if not config:
@@ -328,10 +440,22 @@ def data_command():
     
     if not data.get("checkins"):
         click.echo(style_error("No check-ins recorded yet. Use 'toobuff checkin' to record your first check-in."))
+        if verbose:
+            data_path = get_data_path()
+            data_dir = get_data_dir()
+            
+            # Use ANSI hyperlink escape codes to make paths clickable even with spaces
+            file_url = f"file://{data_path}"
+            dir_url = f"file://{data_dir}"
+            
+            click.echo(f"\n{style_label('Data file location: ')}\033]8;;{file_url}\033\\{data_path}\033]8;;\033\\")
+            click.echo(f"{style_label('Data directory: ')}\033]8;;{dir_url}\033\\{data_dir}\033]8;;\033\\")
         return
     
     checkins = data["checkins"]
-    weeks = data.get("weeks", {})
+    
+    # Calculate weekly summaries at runtime
+    weeks = calculate_weekly_summaries(checkins, config)
     
     click.echo(f"\n{style_heading('=== Data Summary ===')}\n")
     
@@ -398,7 +522,13 @@ def data_command():
         click.echo(f"\n{style_heading('=== Weekly Summaries ===')}")
         for week_id in sorted(weeks.keys()):
             week_data = weeks[week_id]
-            click.echo(f"\n{style_heading(f'Week {week_id}:')}")
+            year = week_data["year"]
+            week = week_data["week"]
+            week_start = week_data["week_start"]
+            week_end = week_data["week_end"]
+            
+            week_header = format_week_header(year, week, week_start, week_end)
+            click.echo(f"\n{style_heading(week_header)}")
             
             if week_data.get("sleep_days", 0) > 0:
                 avg_sleep = week_data["sleep_total"] / week_data["sleep_days"]
@@ -424,6 +554,18 @@ def data_command():
             if wake_total > 0:
                 adherence_pct = (wake_adherence / wake_total) * 100
                 click.echo(style_number(f"  Wake up adherence: {wake_adherence}/{wake_total} ({adherence_pct:.1f}%)"))
+    
+    if verbose:
+        data_path = get_data_path()
+        data_dir = get_data_dir()
+        
+        # Use ANSI hyperlink escape codes to make paths clickable even with spaces
+        # Format: \033]8;;<URL>\033\\<text>\033]8;;\033\\
+        file_url = f"file://{data_path}"
+        dir_url = f"file://{data_dir}"
+        
+        click.echo(f"\n{style_label('Data file location: ')}\033]8;;{file_url}\033\\{data_path}\033]8;;\033\\")
+        click.echo(f"{style_label('Data directory: ')}\033]8;;{dir_url}\033\\{data_dir}\033]8;;\033\\")
 
 
 @click.command()

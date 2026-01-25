@@ -62,14 +62,19 @@ def load_data() -> Dict[str, Any]:
     """Load the data file."""
     data_path = get_data_path()
     if not data_path.exists():
-        return {"checkins": [], "weeks": {}}
-    with open(data_path, "r") as f:
-        return json.load(f)
+        return {"checkins": []}
+    data = json.load(open(data_path, "r"))
+    # Remove "weeks" if it exists (legacy data structure)
+    if "weeks" in data:
+        del data["weeks"]
+    return data
 
 
 def save_data(data: Dict[str, Any]) -> None:
     """Save the data file."""
     data_path = get_data_path()
+    # Remove "weeks" if it exists (legacy data structure, calculated at runtime)
+    data_to_save = {k: v for k, v in data.items() if k != "weeks"}
     with open(data_path, "w") as f:
-        json.dump(data, f, indent=2)
+        json.dump(data_to_save, f, indent=2)
 
