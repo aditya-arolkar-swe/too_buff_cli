@@ -25,6 +25,7 @@ classifiers = [
 python = "^3.8"
 click = "^8.0.0"
 platformdirs = "^3.0.0"
+pytz = "^2024.1"
 
 [tool.poetry.scripts]
 toobuff = "toobuff.cli:main"

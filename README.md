@@ -19,6 +19,7 @@ After installation, you can use `toobuff` from anywhere:
 toobuff init
 toobuff checkin
 toobuff data
+toobuff goals
 ```
 
 ## Usage
@@ -29,13 +30,14 @@ toobuff data
 toobuff init
 ```
 
-This will prompt you to set up:
+This will prompt you to set up your weekly goals:
 - Workouts per week
-- Wake up time goal
-- Weekly cardio time goal
-- Weekly average protein goal
-- Weekly average calorie goal
-- Weekly average steps goal
+- Wake-up time goal
+- Daily sleep goal (hours)
+- Weekly cardio time goal (minutes)
+- Protein goal (grams)
+- Calorie goal
+- Step goal
 
 ### Record daily check-ins
 
@@ -44,19 +46,16 @@ toobuff checkin
 ```
 
 This interactive command will ask you about:
-- Wake up time
+- Wake-up time
 - Sleep duration
-- Workout details (week, day, primary lift, weights)
+- Workout details (block week/day, primary lifts with weights)
 - Cardio (medium, duration, zone)
-- Optional: protein, calories, steps
+- Protein
+- Calories
+- Steps
 
-### View data file location
-
-```bash
-toobuff datafile
-```
-
-Prints the location of your data file and opens it in Finder (macOS).
+**Options:**
+- `--backfill` - Add a check-in for a previous day
 
 ### View data summary
 
@@ -67,10 +66,33 @@ toobuff data
 Shows a summary of your recorded data including:
 - Days recorded
 - Average sleep time
+- Sleep balance (surplus/deficit vs goal)
 - Average workouts per week
 - Average wake time
-- Wake up time adherence
-- Weekly summaries
+- Wake-up time adherence
+
+**Weekly Summaries** show weekly results against your goals ✅/❌:
+- Sessions recorded
+- Workouts hit 
+- Average sleep 
+- Average protein 
+- Average calories 
+- Total cardio 
+- Average steps 
+- Wake-up times and adherence 
+
+### View and update goals
+
+```bash
+toobuff goals
+```
+
+Displays your current weekly goals with the date they were set.
+
+**Options:**
+- `--update` - Interactively update your weekly goals
+
+When you update goals, weekly summaries compare against the goals that were active during that specific week.
 
 ## Background and Motivation
 
@@ -85,9 +107,10 @@ While it's been helpful, it's easy to see that the best tool for the numeric asp
 
 ## Data Storage
 
-All data is stored locally on your machine. Use `toobuff datafile` to see where your data is stored.
+All data is stored locally on your machine in the application support directory:
+- **macOS**: `~/Library/Application Support/toobuff/`
+- **Linux**: `~/.local/share/toobuff/`
 
-## License
+Use `toobuff data -v` to see the exact file locations.
 
-MIT
 
