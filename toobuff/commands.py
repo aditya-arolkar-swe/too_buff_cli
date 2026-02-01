@@ -346,50 +346,56 @@ def calculate_weekly_summaries(checkins: list) -> dict:
                 "week": checkin_date.isocalendar()[1],
                 "week_start": get_week_start(checkin_date),
                 "week_end": get_week_end(checkin_date),
-                "protein_total": 0.0,
-                "protein_days": 0,
-                "sleep_total": 0.0,
-                "sleep_days": 0,
-                "calories_total": 0,
-                "calories_days": 0,
-                "cardio_total_minutes": 0,
-                "steps_total": 0,
-                "steps_days": 0,
+                "protein_values": [],
+                "sleep_values": [],
+                "calories_values": [],
+                "cardio_values": [],
+                "steps_values": [],
+                "carbs_values": [],
+                "fats_values": [],
+                "fiber_values": [],
+                "weight_values": [],
+                "cooldown_count": 0,
                 "wake_up_times": [],  # Store actual wake up times (adherence calculated later)
                 "workout_count": 0,
             }
 
         week_data = weeks[week_id]
 
-        # Update sleep
+        # Append values to lists (totals/averages computed at analysis time)
         if checkin.get("sleep_hours"):
-            week_data["sleep_total"] += checkin["sleep_hours"]
-            week_data["sleep_days"] += 1
+            week_data["sleep_values"].append(checkin["sleep_hours"])
 
-        # Update cardio
         if checkin.get("cardio") and checkin["cardio"].get("duration_minutes"):
-            week_data["cardio_total_minutes"] += checkin["cardio"]["duration_minutes"]
+            week_data["cardio_values"].append(checkin["cardio"]["duration_minutes"])
 
-        # Store wake up times (adherence calculated later with historical config)
         if checkin.get("wake_up_time"):
             week_data["wake_up_times"].append(checkin["wake_up_time"])
 
-        # Update protein
         if checkin.get("protein"):
-            week_data["protein_total"] += checkin["protein"]
-            week_data["protein_days"] += 1
+            week_data["protein_values"].append(checkin["protein"])
 
-        # Update calories
         if checkin.get("calories"):
-            week_data["calories_total"] += checkin["calories"]
-            week_data["calories_days"] += 1
+            week_data["calories_values"].append(checkin["calories"])
 
-        # Update steps
         if checkin.get("steps"):
-            week_data["steps_total"] += checkin["steps"]
-            week_data["steps_days"] += 1
+            week_data["steps_values"].append(checkin["steps"])
 
-        # Update workout count
+        if checkin.get("carbs"):
+            week_data["carbs_values"].append(checkin["carbs"])
+
+        if checkin.get("fats"):
+            week_data["fats_values"].append(checkin["fats"])
+
+        if checkin.get("fiber"):
+            week_data["fiber_values"].append(checkin["fiber"])
+
+        if checkin.get("weight"):
+            week_data["weight_values"].append(checkin["weight"])
+
+        if checkin.get("cool_down"):
+            week_data["cooldown_count"] += 1
+
         if checkin.get("workout"):
             week_data["workout_count"] += 1
 
@@ -409,79 +415,71 @@ def check_goals_for_week(week_data: dict, week_checkins: list, config: dict) -> 
     """
     goals_info = {}
 
+    # Helper to check goals with configurable aggregation and tolerance
+    def check_goal(data_key: str, goal_key: str, agg: str = "avg", bottom_pct: float = 0.0, top_pct: float = None):
+        """Check if actual value meets goal (with optional bottom/top tolerance percentages).
+        
+        Args:
+            data_key: Key to look up data in week_data
+            goal_key: Key to look up goal in config
+            agg: Aggregation type - "avg" (average), "sum", or "count" (direct value)
+            bottom_pct: How much below goal is acceptable (e.g., 0.05 = 5% below)
+            top_pct: How much above goal is acceptable (e.g., 0.10 = 10% above)
+        """
+        goal = config.get(goal_key, 0)
+        
+        if agg == "count":
+            actual = week_data.get(data_key, 0)
+        else:
+            values = week_data.get(data_key, [])
+            if not values:
+                return {"met": None, "goal": goal, "actual": None}
+            
+            if agg == "avg":
+                actual = sum(values) / len(values)
+            else:
+                actual = sum(values)
+        
+        met = None
+        if goal > 0:
+            lower_bound = goal * (1 - bottom_pct)
+            upper_bound = float('inf')
+            if top_pct is not None:
+                upper_bound = goal * (1 + top_pct)
+            
+            met = lower_bound <= actual <= upper_bound
+
+        return {"met": met, "goal": goal, "actual": actual}
+
     # Workouts per week
-    workouts_goal = config.get("workouts_per_week", 0)
-    workouts_actual = week_data.get("workout_count", 0)
-    goals_info["workouts"] = {
-        "met": workouts_actual >= workouts_goal if workouts_goal > 0 else None,
-        "goal": workouts_goal,
-        "actual": workouts_actual,
-    }
+    goals_info["workouts"] = check_goal("workout_count", "workouts_per_week", agg="count")
 
-    # Weekly cardio time goal
-    cardio_goal = config.get("weekly_cardio_time_goal", 0)
-    cardio_actual = week_data.get("cardio_total_minutes", 0)
-    goals_info["cardio"] = {
-        "met": cardio_actual >= cardio_goal if cardio_goal > 0 else None,
-        "goal": cardio_goal,
-        "actual": cardio_actual,
-    }
+    # Weekly cardio time goal (sum)
+    goals_info["cardio"] = check_goal("cardio_values", "weekly_cardio_time_goal", agg="sum")
 
-    # Weekly average protein goal (with 2g tolerance)
-    protein_goal = config.get("weekly_protein_goal", 0)
-    if week_data.get("protein_days", 0) > 0:
-        protein_actual = week_data["protein_total"] / week_data["protein_days"]
-        # Check if within 2g tolerance (actual >= goal - 2)
-        protein_met = (
-            protein_actual >= (protein_goal - 2.0) if protein_goal > 0 else None
-        )
-        goals_info["protein"] = {
-            "met": protein_met,
-            "goal": protein_goal,
-            "actual": protein_actual,
-        }
-    else:
-        goals_info["protein"] = {"met": None, "goal": protein_goal, "actual": None}
+    # Weekly average protein goal (1% below, 10% above)
+    goals_info["protein"] = check_goal("protein_values", "weekly_protein_goal", bottom_pct=0.01, top_pct=0.10)
 
-    # Weekly average calorie goal (with 5% tolerance)
-    calories_goal = config.get("weekly_calorie_goal", 0)
-    if week_data.get("calories_days", 0) > 0:
-        calories_actual = week_data["calories_total"] / week_data["calories_days"]
-        # Check if within 5% tolerance (actual >= goal * 0.95)
-        calories_met = (
-            calories_actual >= (calories_goal * 0.95) if calories_goal > 0 else None
-        )
-        goals_info["calories"] = {
-            "met": calories_met,
-            "goal": calories_goal,
-            "actual": calories_actual,
-        }
-    else:
-        goals_info["calories"] = {"met": None, "goal": calories_goal, "actual": None}
+    # Weekly average calorie goal (5% below, 2% above)
+    goals_info["calories"] = check_goal("calories_values", "weekly_calorie_goal", bottom_pct=0.05, top_pct=0.02)
 
-    # Weekly average steps goal
-    steps_goal = config.get("weekly_steps_goal", 0)
-    if week_data.get("steps_days", 0) > 0:
-        steps_actual = week_data["steps_total"] / week_data["steps_days"]
-        goals_info["steps"] = {
-            "met": steps_actual >= steps_goal if steps_goal > 0 else None,
-            "goal": steps_goal,
-            "actual": steps_actual,
-        }
-    else:
-        goals_info["steps"] = {"met": None, "goal": steps_goal, "actual": None}
+    # Weekly average steps goal (0% below, 50% above)
+    goals_info["steps"] = check_goal("steps_values", "weekly_steps_goal", bottom_pct=0.0, top_pct=0.50)
+
+    # Weekly average carbs goal (5% below, 10% above)
+    goals_info["carbs"] = check_goal("carbs_values", "weekly_carbs_goal", bottom_pct=0.05, top_pct=0.10)
+
+    # Weekly average fats goal (10% below, 5% above)
+    goals_info["fats"] = check_goal("fats_values", "weekly_fats_goal", bottom_pct=0.10, top_pct=0.05)
+
+    # Weekly average fiber goal (0% below, 10% above)
+    goals_info["fiber"] = check_goal("fiber_values", "weekly_fiber_goal", bottom_pct=0.0, top_pct=0.10)
+
+    # Weekly cooldown days goal
+    goals_info["cooldown"] = check_goal("cooldown_count", "weekly_cooldown_goal", agg="count")
 
     # Daily sleep goal (average sleep per day)
-    sleep_goal = config.get("daily_sleep_goal", 0)
-    if week_data.get("sleep_days", 0) > 0:
-        sleep_actual = week_data["sleep_total"] / week_data["sleep_days"]
-        goals_info["sleep"] = {
-            "met": sleep_actual >= sleep_goal if sleep_goal > 0 else None,
-            "goal": sleep_goal,
-            "actual": sleep_actual,
-        }
-    else:
-        goals_info["sleep"] = {"met": None, "goal": sleep_goal, "actual": None}
+    goals_info["sleep"] = check_goal("sleep_values", "daily_sleep_goal")
 
     # Wake up time adherence (80% threshold) - calculate using historical config
     wake_up_times = week_data.get("wake_up_times", [])
@@ -529,13 +527,21 @@ def format_goal_text(goal_key: str, goal_info: dict, config: dict) -> str:
     if goal_key == "sleep":
         goal_text = f"{goal_value:.1f} hrs"
     elif goal_key == "protein":
-        goal_text = f"{goal_value:.1f} g"
+        goal_text = f"{int(goal_value)} g"
     elif goal_key == "calories":
         goal_text = f"{int(goal_value)}"
     elif goal_key == "cardio":
         goal_text = f"{int(goal_value)} min"
     elif goal_key == "steps":
         goal_text = f"{int(goal_value)}"
+    elif goal_key == "carbs":
+        goal_text = f"{int(goal_value)} g"
+    elif goal_key == "fats":
+        goal_text = f"{int(goal_value)} g"
+    elif goal_key == "fiber":
+        goal_text = f"{int(goal_value)} g"
+    elif goal_key == "cooldown":
+        goal_text = f"{int(goal_value)} days"
     elif goal_key == "wake_up":
         # For wake up, goal_value is a time string like "05:30"
         goal_text = str(goal_value) if goal_value else "N/A"
@@ -860,63 +866,55 @@ def display_weekly_metrics(week_data: dict, goals_info: dict, config: dict, conf
         "Average calories",
         "Total cardio",
         "Average steps",
+        "Average carbs",
+        "Average fats",
+        "Average fiber",
+        "Average weight",
+        "Cool down days",
         "Wake up times",
         "Wake up adherence",
     ]
     max_weekly_label_width = max(len(label) for label in weekly_labels)
     weekly_label_width = 2 + max_weekly_label_width + 1
 
+    # Helper to build sample line for a metric if values exist
+    def add_avg_sample(label: str, values_key: str, fmt: str, unit: str = ""):
+        values = week_data.get(values_key, [])
+        if values:
+            avg = sum(values) / len(values)
+            sample_lines.append(
+                build_sample_metric_line(label, f"{avg:{fmt}}{unit}", weekly_label_width)
+            )
+
     # Build sample lines for width calculation
     session_count = week_data.get("session_count", 0)
     workouts_count = week_data.get("workout_count", 0)
 
     sample_lines = [
-        build_sample_metric_line(
-            "Sessions recorded", f"{session_count}/7", weekly_label_width
-        ),
-        build_sample_metric_line(
-            "Workouts hit", str(workouts_count), weekly_label_width
-        ),
+        build_sample_metric_line("Sessions recorded", f"{session_count}/7", weekly_label_width),
+        build_sample_metric_line("Workouts hit", str(workouts_count), weekly_label_width),
     ]
 
-    if week_data.get("sleep_days", 0) > 0:
-        avg_sleep = week_data["sleep_total"] / week_data["sleep_days"]
-        sample_lines.append(
-            build_sample_metric_line(
-                "Average sleep", f"{avg_sleep:.1f} hrs", weekly_label_width
-            )
-        )
+    add_avg_sample("Average sleep", "sleep_values", ".1f", " hrs")
+    add_avg_sample("Average protein", "protein_values", ".0f", " g")
+    add_avg_sample("Average calories", "calories_values", ".0f")
 
-    if week_data.get("protein_days", 0) > 0:
-        avg_protein = week_data["protein_total"] / week_data["protein_days"]
-        sample_lines.append(
-            build_sample_metric_line(
-                "Average protein", f"{avg_protein:.1f} g", weekly_label_width
-            )
-        )
-
-    if week_data.get("calories_days", 0) > 0:
-        avg_calories = week_data["calories_total"] / week_data["calories_days"]
-        sample_lines.append(
-            build_sample_metric_line(
-                "Average calories", f"{avg_calories:.0f}", weekly_label_width
-            )
-        )
-
-    cardio_total = week_data.get("cardio_total_minutes", 0)
+    cardio_values = week_data.get("cardio_values", [])
+    cardio_total = sum(cardio_values)
     sample_lines.append(
-        build_sample_metric_line(
-            "Total cardio", f"{cardio_total} min", weekly_label_width
-        )
+        build_sample_metric_line("Total cardio", f"{cardio_total} min", weekly_label_width)
     )
 
-    if week_data.get("steps_days", 0) > 0:
-        avg_steps = week_data["steps_total"] / week_data["steps_days"]
-        sample_lines.append(
-            build_sample_metric_line(
-                "Average steps", f"{avg_steps:.0f}", weekly_label_width
-            )
-        )
+    add_avg_sample("Average steps", "steps_values", ".0f")
+    add_avg_sample("Average carbs", "carbs_values", ".0f", " g")
+    add_avg_sample("Average fats", "fats_values", ".0f", " g")
+    add_avg_sample("Average fiber", "fiber_values", ".0f", " g")
+    add_avg_sample("Average weight", "weight_values", ".1f", " lbs")
+
+    cooldown_count = week_data.get("cooldown_count", 0)
+    sample_lines.append(
+        build_sample_metric_line("Cool down days", str(cooldown_count), weekly_label_width)
+    )
 
     wake_up_times = week_data.get("wake_up_times", [])
     wake_total = week_data.get("wake_up_total", 0)
@@ -948,6 +946,10 @@ def display_weekly_metrics(week_data: dict, goals_info: dict, config: dict, conf
         "calories",
         "cardio",
         "steps",
+        "carbs",
+        "fats",
+        "fiber",
+        "cooldown",
         "wake_up",
     ]:
         info = goals_info.get(key, {})
@@ -955,82 +957,49 @@ def display_weekly_metrics(week_data: dict, goals_info: dict, config: dict, conf
             goal_texts.append(format_goal_text(key, info, config))
     max_goal_width = max(len(text) for text in goal_texts) if goal_texts else 0
 
+    # Helper to echo average metric if values exist
+    def echo_avg_metric(label: str, values_key: str, fmt: str, unit: str, goal_key: str):
+        values = week_data.get(values_key, [])
+        if values:
+            avg = sum(values) / len(values)
+            echo_metric_line(
+                label, f"{avg:{fmt}}{unit}", weekly_label_width,
+                goals_info.get(goal_key), goal_key, config, goal_column, max_goal_width,
+            )
+
     # Display metrics
     echo_metric_line("Sessions recorded", f"{session_count}/7", weekly_label_width)
 
     echo_metric_line(
-        "Workouts hit",
-        str(workouts_count),
-        weekly_label_width,
-        goals_info.get("workouts"),
-        "workouts",
-        config,
-        goal_column,
-        max_goal_width,
+        "Workouts hit", str(workouts_count), weekly_label_width,
+        goals_info.get("workouts"), "workouts", config, goal_column, max_goal_width,
     )
 
-    if week_data.get("sleep_days", 0) > 0:
-        avg_sleep = week_data["sleep_total"] / week_data["sleep_days"]
-        echo_metric_line(
-            "Average sleep",
-            f"{avg_sleep:.1f} hrs",
-            weekly_label_width,
-            goals_info.get("sleep"),
-            "sleep",
-            config,
-            goal_column,
-            max_goal_width,
-        )
-
-    if week_data.get("protein_days", 0) > 0:
-        avg_protein = week_data["protein_total"] / week_data["protein_days"]
-        echo_metric_line(
-            "Average protein",
-            f"{avg_protein:.1f} g",
-            weekly_label_width,
-            goals_info.get("protein"),
-            "protein",
-            config,
-            goal_column,
-            max_goal_width,
-        )
-
-    if week_data.get("calories_days", 0) > 0:
-        avg_calories = week_data["calories_total"] / week_data["calories_days"]
-        echo_metric_line(
-            "Average calories",
-            f"{avg_calories:.0f}",
-            weekly_label_width,
-            goals_info.get("calories"),
-            "calories",
-            config,
-            goal_column,
-            max_goal_width,
-        )
+    echo_avg_metric("Average sleep", "sleep_values", ".1f", " hrs", "sleep")
+    echo_avg_metric("Average protein", "protein_values", ".0f", " g", "protein")
+    echo_avg_metric("Average calories", "calories_values", ".0f", "", "calories")
 
     echo_metric_line(
-        "Total cardio",
-        f"{cardio_total} min",
-        weekly_label_width,
-        goals_info.get("cardio"),
-        "cardio",
-        config,
-        goal_column,
-        max_goal_width,
+        "Total cardio", f"{cardio_total} min", weekly_label_width,
+        goals_info.get("cardio"), "cardio", config, goal_column, max_goal_width,
     )
 
-    if week_data.get("steps_days", 0) > 0:
-        avg_steps = week_data["steps_total"] / week_data["steps_days"]
-        echo_metric_line(
-            "Average steps",
-            f"{avg_steps:.0f}",
-            weekly_label_width,
-            goals_info.get("steps"),
-            "steps",
-            config,
-            goal_column,
-            max_goal_width,
-        )
+    echo_avg_metric("Average steps", "steps_values", ".0f", "", "steps")
+    echo_avg_metric("Average carbs", "carbs_values", ".0f", " g", "carbs")
+    echo_avg_metric("Average fats", "fats_values", ".0f", " g", "fats")
+    echo_avg_metric("Average fiber", "fiber_values", ".0f", " g", "fiber")
+
+    # Weight has no goal, just display if present
+    weight_values = week_data.get("weight_values", [])
+    if weight_values:
+        avg_weight = sum(weight_values) / len(weight_values)
+        echo_metric_line("Average weight", f"{avg_weight:.1f} lbs", weekly_label_width)
+
+    cooldown_count = week_data.get("cooldown_count", 0)
+    echo_metric_line(
+        "Cool down days", str(cooldown_count), weekly_label_width,
+        goals_info.get("cooldown"), "cooldown", config, goal_column, max_goal_width,
+    )
 
     if wake_total > 0:
         wake_times_str = ", ".join(wake_up_times)
@@ -1125,7 +1094,7 @@ def init_command(ctx, verbose):
 
     # Weekly average protein goal (in grams)
     config["weekly_protein_goal"] = aligned_prompt(
-        "Protein goal (grams)", LABEL_WIDTH, type_converter=float, default=150.0, style_func=style_question_purple
+        "Protein goal (grams)", LABEL_WIDTH, type_converter=int, default=150, style_func=style_question_purple
     )
 
     # Weekly average calorie goal
@@ -1136,6 +1105,26 @@ def init_command(ctx, verbose):
     # Weekly average steps goal
     config["weekly_steps_goal"] = aligned_prompt(
         "Steps goal", LABEL_WIDTH, type_converter=int, default=10000, style_func=style_question_purple
+    )
+
+    # Weekly average carbs goal (in grams)
+    config["weekly_carbs_goal"] = aligned_prompt(
+        "Carbs goal (grams)", LABEL_WIDTH, type_converter=int, default=250, style_func=style_question_purple
+    )
+
+    # Weekly average fats goal (in grams)
+    config["weekly_fats_goal"] = aligned_prompt(
+        "Fats goal (grams)", LABEL_WIDTH, type_converter=int, default=70, style_func=style_question_purple
+    )
+
+    # Weekly average fiber goal (in grams)
+    config["weekly_fiber_goal"] = aligned_prompt(
+        "Fiber goal (grams)", LABEL_WIDTH, type_converter=int, default=30, style_func=style_question_purple
+    )
+
+    # Cool down days per week goal
+    config["weekly_cooldown_goal"] = aligned_prompt(
+        "Cool down days/week", LABEL_WIDTH, type_converter=int, default=4, style_func=style_question_purple
     )
 
     save_config(config, create_timestamped=True)
@@ -1313,19 +1302,44 @@ def checkin_command(backfill, dry_run):
     else:
         checkin["cardio"] = {}
 
-    # Protein
-    protein = aligned_prompt(
-        "Protein (g)", LABEL_WIDTH, type_converter=float, default=0.0
-    )
-    checkin["protein"] = protein
-
     # Calories
     calories = aligned_prompt("Calories", LABEL_WIDTH, type_converter=int, default=0)
     checkin["calories"] = calories
 
+    # Carbs
+    carbs = aligned_prompt("Carbs (g)", LABEL_WIDTH, type_converter=int, default=0)
+    checkin["carbs"] = carbs
+
+    # Fats
+    fats = aligned_prompt("Fats (g)", LABEL_WIDTH, type_converter=int, default=0)
+    checkin["fats"] = fats
+
+    # Protein
+    protein = aligned_prompt("Protein (g)", LABEL_WIDTH, type_converter=int, default=0)
+    checkin["protein"] = protein
+
+    # Fiber
+    fiber = aligned_prompt("Fiber (g)", LABEL_WIDTH, type_converter=int, default=0)
+    checkin["fiber"] = fiber
+
+    # Weight
+    weight = aligned_prompt("Weight (lbs)", LABEL_WIDTH, type_converter=float, default=0.0)
+    checkin["weight"] = weight
+
     # Steps
     steps = aligned_prompt("Steps", LABEL_WIDTH, type_converter=int, default=0)
     checkin["steps"] = steps
+
+    # Cool down
+    did_cooldown = click.confirm(
+        style_question("Did you cool down today?".ljust(LABEL_WIDTH)), default=True
+    )
+    # Rewrite line with bold answer
+    cooldown_answer = "Yes" if did_cooldown else "No"
+    click.echo(
+        f"\033[A\033[K{style_question('Did you cool down today?'.ljust(LABEL_WIDTH))}: {click.style(cooldown_answer, bold=True, fg='yellow')}"
+    )
+    checkin["cool_down"] = did_cooldown
 
     # Add checkin to data
     if dry_run:
@@ -1612,8 +1626,8 @@ def goals_command(verbose, update):
 
         # Weekly average protein goal (in grams)
         config["weekly_protein_goal"] = aligned_prompt(
-            "Protein goal (grams)", LABEL_WIDTH, type_converter=float,
-            default=config.get("weekly_protein_goal", 150.0), style_func=style_question_purple
+            "Protein goal (grams)", LABEL_WIDTH, type_converter=int,
+            default=config.get("weekly_protein_goal", 150), style_func=style_question_purple
         )
 
         # Weekly average calorie goal
@@ -1626,6 +1640,30 @@ def goals_command(verbose, update):
         config["weekly_steps_goal"] = aligned_prompt(
             "Steps goal", LABEL_WIDTH, type_converter=int,
             default=config.get("weekly_steps_goal", 10000), style_func=style_question_purple
+        )
+
+        # Weekly average carbs goal (in grams)
+        config["weekly_carbs_goal"] = aligned_prompt(
+            "Carbs goal (grams)", LABEL_WIDTH, type_converter=int,
+            default=config.get("weekly_carbs_goal", 250), style_func=style_question_purple
+        )
+
+        # Weekly average fats goal (in grams)
+        config["weekly_fats_goal"] = aligned_prompt(
+            "Fats goal (grams)", LABEL_WIDTH, type_converter=int,
+            default=config.get("weekly_fats_goal", 70), style_func=style_question_purple
+        )
+
+        # Weekly average fiber goal (in grams)
+        config["weekly_fiber_goal"] = aligned_prompt(
+            "Fiber goal (grams)", LABEL_WIDTH, type_converter=int,
+            default=config.get("weekly_fiber_goal", 30), style_func=style_question_purple
+        )
+
+        # Cool down days per week goal
+        config["weekly_cooldown_goal"] = aligned_prompt(
+            "Cool down days/week", LABEL_WIDTH, type_converter=int,
+            default=config.get("weekly_cooldown_goal", 4), style_func=style_question_purple
         )
 
         save_config(config, create_timestamped=True)
@@ -1662,6 +1700,10 @@ def goals_command(verbose, update):
         ("Protein", "weekly_protein_goal", " g"),
         ("Calories", "weekly_calorie_goal", ""),
         ("Steps", "weekly_steps_goal", ""),
+        ("Carbs", "weekly_carbs_goal", " g"),
+        ("Fats", "weekly_fats_goal", " g"),
+        ("Fiber", "weekly_fiber_goal", " g"),
+        ("Cool Down", "weekly_cooldown_goal", " days/week"),
     ]
 
     max_label_width = max(len(label) for label, _, _ in goals) + 1  # +1 for colon
