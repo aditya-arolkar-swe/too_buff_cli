@@ -1047,6 +1047,87 @@ def display_file_locations(data_path, data_dir) -> None:
     click.echo(f"{style_brown(padded_label)} {clickable_path}")
 
 
+def format_week_for_spreadsheet(week_id: str = None) -> str:
+    """Format a week's data for copying to a spreadsheet.
+
+    Returns tab-separated daily values for each metric in the order:
+    Protein, Carbs, Fiber, Fats, Calories, Step count
+
+    Args:
+        week_id: Optional week identifier (YYYY-WW format). If None, uses current week.
+
+    Returns:
+        Formatted string with tab-separated values for spreadsheet.
+    """
+    data = load_data()
+
+    if not data.get("checkins"):
+        return "No check-ins recorded yet."
+
+    checkins = data["checkins"]
+
+    # Determine which week to use
+    et_tz = pytz.timezone("US/Eastern")
+    if week_id is None:
+        now = datetime.now(et_tz)
+        week_id = get_week_number(now)
+
+    # Filter checkins for the target week and sort by date
+    week_checkins = []
+    for c in checkins:
+        checkin_date = datetime.fromisoformat(c["timestamp"])
+        if get_week_number(checkin_date) == week_id:
+            week_checkins.append(c)
+
+    if not week_checkins:
+        return f"No check-ins found for week {week_id}."
+
+    # Sort by timestamp to ensure correct day order
+    week_checkins.sort(key=lambda c: c["timestamp"])
+
+    # Extract daily values for each metric
+    protein_values = []
+    carbs_values = []
+    fiber_values = []
+    fats_values = []
+    calories_values = []
+    cardio_values = []
+    steps_values = []
+    weight_values = []
+
+    for c in week_checkins:
+        protein_values.append(str(int(c.get("protein", 0))))
+        carbs_values.append(str(int(c.get("carbs", 0))))
+        fiber_values.append(str(int(c.get("fiber", 0))))
+        fats_values.append(str(int(c.get("fats", 0))))
+        calories_values.append(str(int(c.get("calories", 0))))
+
+        # Cardio duration in minutes
+        cardio = c.get("cardio", {})
+        cardio_duration = cardio.get("duration_minutes", 0) if cardio else 0
+        cardio_values.append(str(int(cardio_duration)))
+
+        steps_values.append(str(int(c.get("steps", 0))))
+
+        # Bodyweight
+        weight = c.get("weight", 0)
+        weight_values.append(str(weight) if weight else "")
+
+    # Format output with tabs for spreadsheet pasting (values only, no row names)
+    lines = [
+        "\t".join(protein_values),
+        "\t".join(carbs_values),
+        "\t".join(fiber_values),
+        "\t".join(fats_values),
+        "\t".join(calories_values),
+        "\t".join(cardio_values),
+        "\t".join(steps_values),
+        "\t".join(weight_values),
+    ]
+
+    return "\n".join(lines)
+
+
 @click.command()
 @click.option("-v", "--verbose", is_flag=True, help="Show config file locations.")
 @click.pass_context
@@ -1727,3 +1808,34 @@ def goals_command(verbose, update):
 
         click.echo(f"\n{style_brown('Goals Config:')} {clickable_config}")
         click.echo(f"{style_brown('Config Folder:')} {clickable_dir}")
+
+
+@click.command()
+@click.option("--week", default=None, help="Week to export (YYYY-WW format). Defaults to current week.")
+def export_command(week):
+    """Export weekly data to clipboard for pasting into spreadsheets."""
+    config = load_config()
+    if not config:
+        click.echo(
+            style_error(
+                "Error: Configuration not found. Please run 'toobuff init' first."
+            )
+        )
+        sys.exit(1)
+
+    output = format_week_for_spreadsheet(week)
+    
+    if output.startswith("No "):
+        click.echo(style_error(output))
+        return
+
+    # Copy to clipboard using pbcopy (macOS)
+    try:
+        process = subprocess.Popen(['pbcopy'], stdin=subprocess.PIPE)
+        process.communicate(output.encode('utf-8'))
+        click.echo(style_success("✓ Data copied to clipboard! Paste directly into Google Sheets."))
+        click.echo(f"\n{output}")
+    except FileNotFoundError:
+        # pbcopy not available (not macOS), just print
+        click.echo(output)
+        click.echo(f"\n{style_brown('Copy the above and paste into your spreadsheet.')}")
