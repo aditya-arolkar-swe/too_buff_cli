@@ -61,6 +61,113 @@ def style_brown(text: str) -> str:
     return f"\033[38;5;130m{text}\033[0m"
 
 
+def calculate_letter_grade(percentage: float) -> str:
+    """Calculate letter grade from percentage using standard academic scale.
+    
+    Grading scale:
+    - A+: 97–100%
+    - A: 93–96%
+    - A-: 90–92%
+    - B+: 87–89%
+    - B: 83–86%
+    - B-: 80–82%
+    - C+: 77–79%
+    - C: 73–76%
+    - C-: 70–72%
+    - D+: 67–69%
+    - D: 63–66%
+    - D-: 60–62%
+    - F: <60%
+    """
+    if percentage >= 97:
+        return "A+"
+    elif percentage >= 93:
+        return "A"
+    elif percentage >= 90:
+        return "A-"
+    elif percentage >= 87:
+        return "B+"
+    elif percentage >= 83:
+        return "B"
+    elif percentage >= 80:
+        return "B-"
+    elif percentage >= 77:
+        return "C+"
+    elif percentage >= 73:
+        return "C"
+    elif percentage >= 70:
+        return "C-"
+    elif percentage >= 67:
+        return "D+"
+    elif percentage >= 63:
+        return "D"
+    elif percentage >= 60:
+        return "D-"
+    else:
+        return "F"
+
+
+def style_grade(grade: str, percentage: float) -> str:
+    """Style a letter grade with color gradient from red (F) to bright green (A+).
+    
+    Uses ANSI 256-color codes for smooth gradient:
+    - F: bright red (196)
+    - D range: red-orange (202-208)
+    - C range: orange-yellow (214-220)
+    - B range: yellow-green (154-190)
+    - A range: green to bright green (46-82)
+    """
+    # Map percentage to color (0-100% -> red to green)
+    # Using 256-color palette for smooth gradients
+    if percentage >= 97:  # A+
+        color = 46  # Bright green
+    elif percentage >= 93:  # A
+        color = 82  # Green
+    elif percentage >= 90:  # A-
+        color = 118  # Light green
+    elif percentage >= 87:  # B+
+        color = 154  # Yellow-green
+    elif percentage >= 83:  # B
+        color = 190  # Lime
+    elif percentage >= 80:  # B-
+        color = 226  # Yellow
+    elif percentage >= 77:  # C+
+        color = 220  # Gold
+    elif percentage >= 73:  # C
+        color = 214  # Orange
+    elif percentage >= 70:  # C-
+        color = 208  # Dark orange
+    elif percentage >= 67:  # D+
+        color = 202  # Red-orange
+    elif percentage >= 63:  # D
+        color = 196  # Red
+    elif percentage >= 60:  # D-
+        color = 160  # Dark red
+    else:  # F
+        color = 124  # Deep red
+    
+    return f"\033[38;5;{color}m\033[1m{grade}\033[0m"
+
+
+def calculate_weekly_score(goals_info: dict) -> tuple:
+    """Calculate the weekly score from goals info.
+    
+    Returns:
+        Tuple of (goals_met, total_goals, percentage)
+    """
+    total_goals = 0
+    goals_met = 0
+    
+    for key, info in goals_info.items():
+        if info and info.get("met") is not None:
+            total_goals += 1
+            if info.get("met"):
+                goals_met += 1
+    
+    percentage = (goals_met / total_goals * 100) if total_goals > 0 else 0
+    return goals_met, total_goals, percentage
+
+
 def style_question(text: str) -> str:
     """Style questions/prompts with magenta (very different from blue)."""
     return click.style(text, fg="magenta")
@@ -473,7 +580,7 @@ def check_goals_for_week(week_data: dict, week_checkins: list, config: dict) -> 
     goals_info["fats"] = check_goal("fats_values", "weekly_fats_goal", bottom_pct=0.10, top_pct=0.05)
 
     # Weekly average fiber goal (0% below, 10% above)
-    goals_info["fiber"] = check_goal("fiber_values", "weekly_fiber_goal", bottom_pct=0.0, top_pct=0.10)
+    goals_info["fiber"] = check_goal("fiber_values", "weekly_fiber_goal", bottom_pct=0.0, top_pct=2.0)
 
     # Weekly cooldown days goal
     goals_info["cooldown"] = check_goal("cooldown_count", "weekly_cooldown_goal", agg="count")
@@ -848,7 +955,7 @@ def build_sample_metric_line(
     return f"{padded_label}: {value}"
 
 
-def display_weekly_metrics(week_data: dict, goals_info: dict, config: dict, config_path: str = None, verbose: bool = False) -> None:
+def display_weekly_metrics(week_data: dict, goals_info: dict, config: dict, config_path: str = None, verbose: bool = False, is_current_week: bool = False) -> None:
     """Display all metrics for a week with aligned goals.
 
     Args:
@@ -857,6 +964,7 @@ def display_weekly_metrics(week_data: dict, goals_info: dict, config: dict, conf
         config: Config dict for goal formatting
         config_path: Path to the config file used for this week's goals
         verbose: Whether to show additional info like config path
+        is_current_week: Whether this is the current (incomplete) week
     """
     weekly_labels = [
         "Sessions recorded",
@@ -1018,6 +1126,23 @@ def display_weekly_metrics(week_data: dict, goals_info: dict, config: dict, conf
         )
     else:
         echo_metric_line("Wake up times", "No data", weekly_label_width)
+
+    # Calculate and display weekly grade
+    goals_met, total_goals, percentage = calculate_weekly_score(goals_info)
+    if total_goals > 0:
+        click.echo()  # Blank line before grade
+        if is_current_week:
+            # Week in progress - don't show grade yet
+            in_progress_text = click.style("week in progress...", fg="bright_black", italic=True)
+            # Use larger text effect with unicode box drawing or just bold caps
+            click.echo(f"  {click.style('GRADE:', bold=True)} {in_progress_text}")
+            click.echo(f"  {style_number(f'{goals_met}/{total_goals} goals met so far')}")
+        else:
+            # Completed week - show the grade
+            grade = calculate_letter_grade(percentage)
+            styled_grade = style_grade(grade, percentage)
+            click.echo(f"  {click.style('GRADE:', bold=True)} {styled_grade}")
+            click.echo(f"  {style_number(f'{goals_met}/{total_goals} goals met ({percentage:.0f}%)')}")
 
     # Show config file path for this week's goals (verbose only)
     if verbose and config_path:
@@ -1648,7 +1773,8 @@ def data_command(verbose):
             goals_info = check_goals_for_week(week_data, week_checkins, week_config)
 
             # Display all metrics using helper function
-            display_weekly_metrics(week_data, goals_info, week_config, week_config_path, verbose)
+            is_current_week = (week_id == current_week_id)
+            display_weekly_metrics(week_data, goals_info, week_config, week_config_path, verbose, is_current_week)
 
     if verbose:
         display_file_locations(get_data_path(), get_data_dir())
