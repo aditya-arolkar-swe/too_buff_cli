@@ -2,7 +2,7 @@
 
 import click
 
-from toobuff.commands import init_command, checkin_command, data_command, goals_command, export_command
+from toobuff.commands import init_command, checkin_command, data_command, goals_command, export_command, inspiration_command
 
 
 @click.group()
@@ -17,6 +17,7 @@ main.add_command(checkin_command, name="checkin")
 main.add_command(data_command, name="data")
 main.add_command(goals_command, name="goals")
 main.add_command(export_command, name="export")
+main.add_command(inspiration_command, name="inspiration")
 
 
 if __name__ == "__main__":

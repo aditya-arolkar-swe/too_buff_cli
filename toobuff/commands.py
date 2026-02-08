@@ -61,6 +61,67 @@ def style_brown(text: str) -> str:
     return f"\033[38;5;130m{text}\033[0m"
 
 
+def display_too_buff_banner() -> None:
+    """Display the TOO BUFF ASCII art banner."""
+    # ANSI codes for skin tone (medium skin - 180) and bold
+    skin = "\033[38;5;180m\033[1m"  # Medium skin tone, bold
+    reset = "\033[0m"
+    
+    # Clean TOO BUFF text banner
+    banner = f"""
+{skin}  ████████╗ ██████╗  ██████╗     ██████╗ ██╗   ██╗███████╗███████╗{reset}
+{skin}  ╚══██╔══╝██╔═══██╗██╔═══██╗    ██╔══██╗██║   ██║██╔════╝██╔════╝{reset}
+{skin}     ██║   ██║   ██║██║   ██║    ██████╔╝██║   ██║█████╗  █████╗{reset}
+{skin}     ██║   ██║   ██║██║   ██║    ██╔══██╗██║   ██║██╔══╝  ██╔══╝{reset}
+{skin}     ██║   ╚██████╔╝╚██████╔╝    ██████╔╝╚██████╔╝██║     ██║{reset}
+{skin}     ╚═╝    ╚═════╝  ╚═════╝     ╚═════╝  ╚═════╝ ╚═╝     ╚═╝{reset}
+"""
+    click.echo(banner)
+
+
+def display_inspiration_banner() -> None:
+    """Display the large TOO BUFF inspiration art with detailed flexing arm."""
+    # ANSI codes for skin tone (medium skin - 180) and bold
+    skin = "\033[38;5;180m\033[1m"  # Medium skin tone, bold
+    reset = "\033[0m"
+    
+    # Large flexing arm braille art (with original braille blanks for proper rendering)
+    arm = f"""{skin}⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣤⣶⠟⠛⠶⣶⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⣾⠿⠋⣡⣴⣧⡀⠈⢻⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣴⠋⠉⣠⠴⠛⠙⠻⢿⣿⡄⠈⢿⣿⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⡏⠉⠀⠀⠀⠀⠀⠀⠉⣷⠀⠉⢧⣿⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⣠⣶⠏⢻⡏⠀⠙⢦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢧⠀⠀⠀⠀⠀⠀⠀⠀⠻⣶⣴⢯⡿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⡾⠋⠋⢰⠏⠀⠀⢰⡈⢳⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⣤⣄⢀⣠⣶⡖⠀⢨⠻⡜⡧⣿⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⢸⣿⣇⡴⠇⠀⠠⣤⣾⣤⡖⢻⠆⠀⠀⠀⠀⠀⠀⠀⠀⠸⢿⣻⣿⡈⢹⠷⠛⠁⠀⠈⢷⣭⡷⢿⣿⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⢠⣿⣿⠏⠁⠀⠀⠀⠀⠁⢈⣿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⣏⠉⡇⠘⢦⡀⠀⣀⣰⣿⢹⣷⠀⠙⢷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⢸⣿⣏⡇⠀⢀⣄⡠⠴⠚⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⠦⣷⣴⣫⠥⡤⠀⢹⡟⢸⣿⣦⣄⣈⣿⣶⣤⣄⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⢸⣿⡽⠁⡆⠸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⣿⠲⡿⠁⠀⣨⠗⢋⣭⡴⠂⠱⣍⠙⢷⣬⣝⡻⢷⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⣾⣿⡇⠀⡇⠀⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⢦⣤⡶⢞⣵⣿⡿⠋⠀⠀⠀⢻⣷⠀⠉⠻⣿⣶⣬⠻⣷⠒⢶⣦⣤⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⡇⣿⠇⢀⣇⠀⢸⣇⠀⠀⠀⠀⠀⣀⡴⠶⠒⠶⢤⣀⠀⠀⣀⣴⡶⢿⠿⠿⠿⣾⣷⡛⠉⠉⠀⠀⠀⠀⠀⠈⣿⠀⠀⠀⠈⠙⢿⣷⣽⣧⡀⠈⠻⣿⣷⡀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⡇⣿⢀⣼⢸⡆⠘⣿⣧⡀⠀⠀⣾⠏⣀⣴⣫⣭⣦⡈⠳⣿⣿⣡⠖⠋⠀⠀⠀⠀⠈⠙⣦⡀⠀⠀⠀⠀⠀⣼⡿⠀⠀⠰⣄⠀⠀⠙⢿⣿⣧⠀⠀⣌⢿⣷⡄⠀⠀⠀⠀⠀⠀⠀
+⢸⡇⢿⣿⡏⠈⡇⠀⢿⡛⠿⣄⢸⣷⢎⣡⣾⠃⠀⠀⠙⠂⢻⣿⠋⠀⠀⠀⠀⢀⣴⠟⠉⠁⠙⢦⡀⠀⣠⣾⡿⠁⠀⠀⠀⠘⣷⡀⠀⠈⢿⣿⣷⡄⠘⣷⣻⣷⠀⠀⠀⠀⠀⠀⠀
+⣾⡇⣼⣿⡧⡀⣿⠀⠈⣷⣄⠘⢿⣿⣾⠏⠁⠀⠀⠀⠀⢀⣾⡟⠀⠀⠀⠀⣠⣿⠃⠀⠀⠀⠀⢸⣿⠾⠛⠋⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠈⣿⣿⣿⣆⠹⣯⡻⣷⡀⠀⠀⠀⠀⠀
+⣇⢧⣹⣿⢃⡇⣿⡀⠀⠘⢿⣇⠈⣿⣿⣆⡀⠀⠀⠠⠴⠿⠛⠀⠀⢀⣠⣴⣿⠃⠀⠀⠀⣀⣴⣿⣯⣤⣤⣤⢤⣄⣀⠀⠀⢀⣿⡇⠀⠀⠀⣸⣿⣿⣿⣆⠘⣿⣌⠻⣦⠀⠀⠀⠀
+⠹⣼⣇⢳⣾⡇⢻⣧⠀⠀⠀⣿⠀⣿⠛⠛⠛⠒⠒⠋⠀⠈⣿⡶⣿⣿⡿⠟⠁⠀⠉⠒⠛⠋⠉⢹⣿⣿⡿⠛⠳⣌⠻⣷⣶⣿⡿⠀⠀⠀⣰⠟⢻⣿⣿⣿⡆⠘⣿⣆⠙⢷⡀⠀⠀
+⠀⠻⣿⢸⣿⣷⡄⠙⢷⣄⠀⠁⠼⢃⣠⣄⡀⢀⣤⣴⡶⠦⣬⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⣿⡇⠀⠀⠈⠓⠘⢿⣿⡀⠀⠀⢰⠏⠀⠀⢿⣿⣿⣿⡄⢸⣿⣆⠈⣧⠀⠀
+⠀⠀⠘⣾⣿⣿⣿⣦⡀⠀⠀⠀⠈⠉⠀⠉⠉⠉⠉⠉⠀⠀⠈⠛⣿⣿⣶⣤⣀⠀⠀⠀⠀⣀⣾⣿⣿⣿⣿⠀⠀⠀⠀⠀⠀⢻⣿⡆⠀⠉⠀⠀⠀⢸⣿⣿⣿⡇⢸⣿⣿⡆⢸⡆⠀
+⠀⠀⠀⠈⢻⢿⣿⣿⡷⢀⡴⠀⠀⠉⠙⢿⣷⣦⣀⠀⠀⠀⢀⣠⣿⣿⠟⣋⣽⣿⠿⣿⣿⡿⣿⣿⣿⣿⠟⠀⠀⠀⠀⠀⠀⣆⢿⣿⡀⠀⠀⠀⠀⣾⣿⣿⣿⠃⢸⣿⣿⣷⠀⢧⠀
+⠀⠀⠀⠀⠈⠿⢿⣭⣴⣿⣷⣶⣶⣾⣿⣿⣿⣿⣿⣿⣷⣿⣿⡿⣟⣵⣿⣷⡤⠤⠴⢿⣿⣇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⣿⠸⣿⣧⠀⠀⠀⢸⣿⣿⡿⠏⢀⣿⣿⣿⣿⠀⢸⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠛⠲⠤⠭⠭⠤⠴⡞⠛⢿⣿⣿⣿⣄⡤⠾⢿⣿⣦⠀⠀⠀⠀⠀⠀⠀⠀⣠⣿⣿⢀⣿⣿⡇⠀⠀⣿⡿⠋⠀⣠⣾⣿⣿⣿⣿⠆⠀⢇
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠓⠦⢬⣙⣿⣿⣦⣤⣾⣿⣿⣧⡜⢦⣤⣀⣀⣤⣾⣿⣿⡟⣼⣿⣿⡇⠀⢰⠟⠀⢀⡾⢻⡿⠀⢀⠉⠁⠀⣀⡼
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠻⣿⡉⠛⠛⠻⣿⣿⣿⣶⣭⣿⣿⣿⣿⡿⢋⣴⣿⣿⡿⠀⢠⡏⠀⣠⣟⣡⣚⣁⣠⣼⣿⣶⡾⠋⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢷⣟⣿⡀⠀⠀⠘⣿⣿⣿⣿⣿⣿⠟⢉⣴⣿⣿⣿⡟⠁⢠⡿⠀⣰⣿⣿⣿⣿⣿⣿⣿⢿⡿⠃⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢾⢻⣿⠀⠀⠀⢠⣿⣿⣿⣿⠟⢁⣴⣿⣿⣿⡿⠋⠀⢠⣿⠃⣰⣿⠟⣛⣩⣭⣭⡽⠒⠉⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⣯⣿⣷⣦⠀⣾⣿⣿⣿⠋⠀⣾⣿⣿⣿⠟⠀⠀⢠⣿⡇⣼⣿⣿⡿⠿⠛⠉⠁⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿⣿⣍⠀⣿⣿⣿⣿⣄⠀⣿⣿⣿⡟⠀⢀⣴⣿⣿⣼⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢹⣿⣿⡿⠀⠘⢿⣿⣿⣿⡄⠈⢻⣿⣿⢀⣿⣿⣿⣿⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⠟⠁⠀⠀⠀⢨⣿⡿⠁⠀⠀⢻⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⡟⠀⠀⠀⠀⠀⠚⠋⠀⠀⠀⠀⠀⠙⠿⠿⣿⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣹⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠻⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀{reset}"""
+    
+    click.echo(arm)
+
+
 def calculate_letter_grade(percentage: float) -> str:
     """Calculate letter grade from percentage using standard academic scale.
     
@@ -1270,6 +1331,9 @@ def format_week_for_spreadsheet(week_id: str = None) -> str:
 @click.pass_context
 def init_command(ctx, verbose):
     """Set up your weekly goals"""
+    # Display the TOO BUFF banner
+    display_too_buff_banner()
+    
     # Check if config already exists
     existing_config = load_config()
     if existing_config:
@@ -1280,9 +1344,8 @@ def init_command(ctx, verbose):
         ctx.invoke(goals_command, verbose=verbose, update=False)
         return
 
-    click.echo(
-        f"{style_heading('Beware! Users of this CLI get Too Buff!')} \n Let's set up your weekly goals...\n"
-    )
+    click.echo(f"{style_heading('Beware! Users of this CLI get Too Buff!')}")
+    click.echo("Let's set up your weekly goals...\n")
 
     config = {}
 
@@ -1977,3 +2040,9 @@ def export_command(week):
         # pbcopy not available (not macOS), just print
         click.echo(output)
         click.echo(f"\n{style_brown('Copy the above and paste into your spreadsheet.')}")
+
+
+@click.command()
+def inspiration_command():
+    """Display motivational TOO BUFF art to get you pumped!"""
+    display_inspiration_banner()
