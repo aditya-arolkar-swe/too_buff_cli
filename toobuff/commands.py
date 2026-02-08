@@ -425,7 +425,7 @@ def calculate_wake_up_adherence(wake_up_times: list, wake_up_time_goal: str) -> 
                 try:
                     wake_time = parse_time(wake_time_str)
                     wake_minutes = wake_time.hour * 60 + wake_time.minute
-                    if abs(wake_minutes - goal_minutes) <= 30:
+                    if 0 <= (wake_minutes - goal_minutes) <= 60:
                         wake_adherence += 1
                 except:
                     pass
@@ -509,11 +509,18 @@ def calculate_weekly_summaries(checkins: list) -> dict:
     return weeks
 
 
-def check_goals_for_week(week_data: dict, week_checkins: list, config: dict) -> dict:
+def check_goals_for_week(week_data: dict, week_checkins: list, config: dict, is_current_week: bool = False) -> dict:
     """Check if goals are met for a week.
 
     Uses the provided config (should be historical config for that week)
     to determine goal values and calculate adherence.
+
+    Args:
+        week_data: Week data dict with totals and counts
+        week_checkins: List of checkins for this week
+        config: Config dict for goal values
+        is_current_week: If True, cumulative goals (workouts, cooldown) only show ✅ if met,
+                         not ❌ if not yet met (since there's still time)
 
     Returns a dict with goal names as keys and dicts containing:
     - 'met': True/False/None
@@ -558,11 +565,13 @@ def check_goals_for_week(week_data: dict, week_checkins: list, config: dict) -> 
 
         return {"met": met, "goal": goal, "actual": actual}
 
-    # Workouts per week
-    goals_info["workouts"] = check_goal("workout_count", "workouts_per_week", agg="count")
+    # Workouts per week (cumulative - only show ❌ at end of week)
+    workouts_result = check_goal("workout_count", "workouts_per_week", agg="count")
+    if is_current_week and workouts_result.get("met") is False:
+        workouts_result["met"] = None  # Hide ❌ during current week
+    goals_info["workouts"] = workouts_result
 
     # Weekly cardio time goal (sum)
-    goals_info["cardio"] = check_goal("cardio_values", "weekly_cardio_time_goal", agg="sum")
 
     # Weekly average protein goal (1% below, 10% above)
     goals_info["protein"] = check_goal("protein_values", "weekly_protein_goal", bottom_pct=0.01, top_pct=0.10)
@@ -582,8 +591,11 @@ def check_goals_for_week(week_data: dict, week_checkins: list, config: dict) -> 
     # Weekly average fiber goal (0% below, 10% above)
     goals_info["fiber"] = check_goal("fiber_values", "weekly_fiber_goal", bottom_pct=0.0, top_pct=2.0)
 
-    # Weekly cooldown days goal
-    goals_info["cooldown"] = check_goal("cooldown_count", "weekly_cooldown_goal", agg="count")
+    # Weekly cooldown days goal (cumulative - only show ❌ at end of week)
+    cooldown_result = check_goal("cooldown_count", "weekly_cooldown_goal", agg="count")
+    if is_current_week and cooldown_result.get("met") is False:
+        cooldown_result["met"] = None  # Hide ❌ during current week
+    goals_info["cooldown"] = cooldown_result
 
     # Daily sleep goal (average sleep per day)
     goals_info["sleep"] = check_goal("sleep_values", "daily_sleep_goal")
@@ -604,7 +616,7 @@ def check_goals_for_week(week_data: dict, week_checkins: list, config: dict) -> 
     if wake_total > 0:
         adherence_rate = (wake_adherence / wake_total) * 100
         goals_info["wake_up"] = {
-            "met": adherence_rate >= 80.0,
+            "met": adherence_rate >= (5 / 7 * 100),  # 5/7 days (~71.4%)
             "goal": wake_up_time_goal,
             "actual": wake_up_times,
             "adherence": f"{wake_adherence}/{wake_total}",
@@ -1770,10 +1782,10 @@ def data_command(verbose):
                 week_config_path = get_config_path()
 
             # Check goals for this week using the historical config
-            goals_info = check_goals_for_week(week_data, week_checkins, week_config)
+            is_current_week = (week_id == current_week_id)
+            goals_info = check_goals_for_week(week_data, week_checkins, week_config, is_current_week)
 
             # Display all metrics using helper function
-            is_current_week = (week_id == current_week_id)
             display_weekly_metrics(week_data, goals_info, week_config, week_config_path, verbose, is_current_week)
 
     if verbose:
