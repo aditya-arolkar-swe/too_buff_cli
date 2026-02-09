@@ -1204,8 +1204,8 @@ def display_weekly_metrics(week_data: dict, goals_info: dict, config: dict, conf
     goals_met, total_goals, percentage = calculate_weekly_score(goals_info)
     if total_goals > 0:
         click.echo()  # Blank line before grade
-        if is_current_week:
-            # Week in progress - don't show grade yet
+        if is_current_week and week_data.get("session_count", 0) < 7:
+            # Week in progress - don't show grade yet (only if not all sessions recorded)
             in_progress_text = click.style("week in progress...", fg="bright_black", italic=True)
             # Use larger text effect with unicode box drawing or just bold caps
             click.echo(f"  {click.style('GRADE:', bold=True)} {in_progress_text}")
