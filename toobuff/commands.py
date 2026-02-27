@@ -1634,6 +1634,51 @@ def checkin_command(backfill, dry_run):
         save_data(data)
         click.echo(f"\n{style_success('✓ Check-in recorded successfully!')}")
 
+        # Show updated weekly averages for the checkin's week
+        checkins = data["checkins"]
+        weeks = calculate_weekly_summaries(checkins)
+
+        # Find the week this checkin belongs to
+        checkin_week_id = get_week_number(checkin_timestamp)
+
+        if checkin_week_id in weeks:
+            week_data = weeks[checkin_week_id]
+            year = week_data["year"]
+            week_num = week_data["week"]
+            week_start = week_data["week_start"]
+            week_end = week_data["week_end"]
+
+            # Count sessions for this week
+            week_checkins = [
+                c for c in checkins
+                if get_week_number(datetime.fromisoformat(c["timestamp"])) == checkin_week_id
+            ]
+            week_data["session_count"] = len(week_checkins)
+
+            # Load appropriate config for this week
+            week_config = load_config_for_date(week_end)
+            week_config_path = get_config_path_for_date(week_end)
+            if week_config is None:
+                week_config = config
+                week_config_path = get_config_path()
+
+            # Format and display week header
+            week_header = format_week_header(year, week_num, week_start, week_end)
+            current_week_id = get_week_number(datetime.now())
+            is_current_week = (checkin_week_id == current_week_id)
+
+            if week_data["session_count"] >= 7:
+                week_header_styled = click.style(week_header, fg="green", bold=True)
+            else:
+                week_header_styled = f"\033[38;5;208m\033[1m{week_header}\033[0m"
+            click.echo(f"\n{week_header_styled}")
+
+            # Check goals for this week
+            goals_info = check_goals_for_week(week_data, week_checkins, week_config, is_current_week)
+
+            # Display weekly metrics
+            display_weekly_metrics(week_data, goals_info, week_config, None, False, is_current_week)
+
 
 @click.command()
 @click.option(
