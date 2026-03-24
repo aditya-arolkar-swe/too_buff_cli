@@ -37,3 +37,4 @@ ENV/
 # Data files (optional - you may want to track these)
 # .toobuff/
 
+.env.example
