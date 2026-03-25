@@ -1418,121 +1418,89 @@ def init_command(ctx, verbose):
         click.echo(f"{style_brown('Goals Config:')} {clickable_config}")
 
 
-@click.command()
-@click.option("--backfill", is_flag=True, help="Add a check-in for a previous day.")
-@click.option("--dry-run", is_flag=True, help="Preview check-in without saving to data file.")
-def checkin_command(backfill, dry_run):
-    """Start interactive mode to record your daily check-in values."""
-    config = load_config()
-    if not config:
-        click.echo(
-            style_error(
-                "Error: Configuration not found. Please run 'toobuff init' first."
-            )
-        )
-        sys.exit(1)
+CHECKIN_LABEL_WIDTH = 24  # must fit longest label "Did you do cardio today?"
 
-    data = load_data()
 
-    # Get Eastern Time timezone
-    et_tz = pytz.timezone("US/Eastern")
+class CliIO:
+    """Terminal-based IO adapter for the check-in flow."""
 
-    # Label width for aligned prompts - must accommodate longest label "Did you do cardio today?"
-    LABEL_WIDTH = 24
-
-    # Handle backfill mode
-    if backfill:
-        date_str = aligned_prompt("Backfill date (Use DD, MM-DD, or YYYY-MM-DD)", LABEL_WIDTH, default="", show_default=False)
-        if not date_str:
-            click.echo(style_error("Date is required for backfill. Use DD, MM-DD, or YYYY-MM-DD format."))
-            sys.exit(1)
-
-        try:
-            backfill_date = parse_backfill_date(date_str)
-            # Make timezone-aware (5pm ET)
-            checkin_timestamp = et_tz.localize(backfill_date)
-            click.echo(f"\n{style_heading('Daily Check-in (Backfill)')}")
-            timestamp_str = checkin_timestamp.strftime("%Y-%m-%d at %I:%M %p %Z")
-            click.echo(
-                f"  {style_timestamp('Recording check-in for:')} {style_timestamp(timestamp_str)}\n"
-            )
-        except click.BadParameter as e:
-            click.echo(style_error(str(e)))
-            sys.exit(1)
-    else:
-        # Get current time in ET
-        checkin_timestamp = datetime.now(et_tz)
-        click.echo(f"\n{style_heading('Daily Check-in')}")
-        timestamp_str = checkin_timestamp.strftime("%Y-%m-%d at %I:%M %p %Z")
-        click.echo(
-            f"  {style_timestamp('Recording check-in for:')} {style_timestamp(timestamp_str)}\n"
+    def prompt(self, label: str, default=None, type_converter=None, show_default: bool = True):
+        return aligned_prompt(
+            label, CHECKIN_LABEL_WIDTH,
+            type_converter=type_converter, default=default, show_default=show_default,
         )
 
-    checkin = {
-        "timestamp": checkin_timestamp.isoformat(),
-    }
+    def confirm(self, label: str, default: bool = True) -> bool:
+        result = click.confirm(
+            style_question(label.ljust(CHECKIN_LABEL_WIDTH)), default=default
+        )
+        answer = "Yes" if result else "No"
+        click.echo(
+            f"\033[A\033[K{style_question(label.ljust(CHECKIN_LABEL_WIDTH))}: "
+            f"{click.style(answer, bold=True, fg='yellow')}"
+        )
+        return result
+
+    def error(self, msg: str):
+        click.echo(style_error(msg))
+
+    def info(self, msg: str):
+        click.echo(msg)
+
+
+def collect_checkin(io, checkin_timestamp) -> dict:
+    """Collect all check-in data using the provided IO adapter."""
+    checkin = {"timestamp": checkin_timestamp.isoformat()}
 
     # Wake up time
-    wake_time_str = aligned_prompt("Wake up time", LABEL_WIDTH, default="05:30")
-    checkin["wake_up_time"] = parse_time(wake_time_str).strftime("%H:%M")
+    while True:
+        wake_time_str = io.prompt("Wake up time", default="05:30")
+        try:
+            checkin["wake_up_time"] = parse_time(wake_time_str).strftime("%H:%M")
+            break
+        except Exception:
+            io.error("Invalid time. Use HH:MM format (e.g. 05:30).")
 
-    # Sleep duration (in hours)
-    sleep_hours = aligned_prompt(
-        "Sleep (hours)", LABEL_WIDTH, type_converter=float, default=8.0
-    )
-    checkin["sleep_hours"] = sleep_hours
+    # Sleep duration
+    checkin["sleep_hours"] = io.prompt("Sleep (hours)", type_converter=float, default=8.0)
 
-    # Workout information
-    did_workout = click.confirm(
-        style_question("Did you work out today?".ljust(LABEL_WIDTH)), default=True
-    )
-    # Rewrite line with bold answer
-    answer = "Yes" if did_workout else "No"
-    click.echo(
-        f"\033[A\033[K{style_question('Did you work out today?'.ljust(LABEL_WIDTH))}: {click.style(answer, bold=True, fg='yellow')}"
-    )
+    # Workout
+    did_workout = io.confirm("Did you work out today?", default=True)
+    checkin["workout"] = None
 
     if did_workout:
-        # Combined week and day question
         while True:
-            block_str = aligned_prompt("Block day", LABEL_WIDTH, default="w1d1")
+            block_str = io.prompt("Block day", default="w1d1")
             try:
                 workout_week, workout_day = parse_block_day(block_str)
                 break
             except click.BadParameter as e:
-                click.echo(style_error(str(e)))
+                io.error(str(e))
 
         primary_lifts = {}
         lift_options = ["squat", "bench", "deadlift"]
+        io.info("Enter lifts (squat/bench/deadlift). Type 'done' or press Enter when finished.")
 
-        click.echo(
-            style_question("Enter lifts (squat/bench/deadlift). Press Enter when done.")
-        )
         while True:
-            lift = aligned_prompt("  Lift", LABEL_WIDTH, default="", show_default=False)
-            lift = lift.lower().strip()
+            lift = io.prompt("  Lift", default="", show_default=False).lower().strip()
 
-            # Empty input means done
-            if not lift:
+            if not lift or lift == "done":
                 if not primary_lifts:
-                    click.echo("  Please add at least one lift.")
+                    io.info("  Please add at least one lift.")
                     continue
                 break
 
             if lift not in lift_options:
-                click.echo(f"  Invalid lift. Choose from: {', '.join(lift_options)}")
+                io.error(f"  Invalid lift. Choose from: {', '.join(lift_options)}")
                 continue
 
-            # Keep prompting until valid weight format is entered
             while True:
-                weights_str = aligned_prompt(
-                    f"  {lift.capitalize()} (e.g. 175x5)", LABEL_WIDTH, default="", show_default=False
+                weights_str = io.prompt(
+                    f"  {lift.capitalize()} (e.g. 175x5)", default="", show_default=False
                 )
-
                 if not weights_str:
-                    click.echo("  No weight entered. Skipping this lift.")
+                    io.info("  No weight entered. Skipping this lift.")
                     break
-
                 try:
                     weights_sets = parse_weights(weights_str)
                     if weights_sets:
@@ -1542,142 +1510,159 @@ def checkin_command(backfill, dry_run):
                         }
                         break
                     else:
-                        click.echo("  Invalid format. Use WEIGHTxREPS (e.g., 175x5 or 80kgx5)")
+                        io.error("  Invalid format. Use WEIGHTxREPS (e.g., 175x5 or 80kgx5)")
                 except click.BadParameter:
-                    click.echo("  Invalid format. Use WEIGHTxREPS (e.g., 175x5 or 80kgx5)")
+                    io.error("  Invalid format. Use WEIGHTxREPS (e.g., 175x5 or 80kgx5)")
 
         checkin["workout"] = {
             "week": workout_week,
             "day": workout_day,
             "primary_lifts": primary_lifts,
         }
-    else:
-        checkin["workout"] = None
 
     # Cardio
-    did_cardio = click.confirm(
-        style_question("Did you do cardio today?".ljust(LABEL_WIDTH)), default=True
-    )
-    # Rewrite line with bold answer
-    cardio_answer = "Yes" if did_cardio else "No"
-    click.echo(
-        f"\033[A\033[K{style_question('Did you do cardio today?'.ljust(LABEL_WIDTH))}: {click.style(cardio_answer, bold=True, fg='yellow')}"
-    )
-
+    did_cardio = io.confirm("Did you do cardio today?", default=True)
     if did_cardio:
-        cardio_medium = aligned_prompt(
-            "Cardio medium", LABEL_WIDTH, default="incline treadmill"
-        )
-        cardio_duration = aligned_prompt(
-            "Cardio (minutes)", LABEL_WIDTH, type_converter=int, default=15
-        )
-        cardio_zone = aligned_prompt(
-            "Cardio zone", LABEL_WIDTH, type_converter=int, default=3
-        )
-
         checkin["cardio"] = {
-            "medium": cardio_medium,
-            "duration_minutes": cardio_duration,
-            "zone": cardio_zone,
+            "medium": io.prompt("Cardio medium", default="incline treadmill"),
+            "duration_minutes": io.prompt("Cardio (minutes)", type_converter=int, default=15),
+            "zone": io.prompt("Cardio zone", type_converter=int, default=3),
         }
     else:
         checkin["cardio"] = {}
 
-    # Calories
-    calories = aligned_prompt("Calories", LABEL_WIDTH, type_converter=int, default=0)
-    checkin["calories"] = calories
-
-    # Carbs
-    carbs = aligned_prompt("Carbs (g)", LABEL_WIDTH, type_converter=int, default=0)
-    checkin["carbs"] = carbs
-
-    # Fats
-    fats = aligned_prompt("Fats (g)", LABEL_WIDTH, type_converter=int, default=0)
-    checkin["fats"] = fats
-
-    # Protein
-    protein = aligned_prompt("Protein (g)", LABEL_WIDTH, type_converter=int, default=0)
-    checkin["protein"] = protein
-
-    # Fiber
-    fiber = aligned_prompt("Fiber (g)", LABEL_WIDTH, type_converter=int, default=0)
-    checkin["fiber"] = fiber
-
-    # Weight
-    weight = aligned_prompt("Weight (lbs)", LABEL_WIDTH, type_converter=float, default=0.0)
-    checkin["weight"] = weight
-
-    # Steps
-    steps = aligned_prompt("Steps", LABEL_WIDTH, type_converter=int, default=0)
-    checkin["steps"] = steps
+    # Nutrition & body
+    checkin["calories"] = io.prompt("Calories", type_converter=int, default=0)
+    checkin["carbs"] = io.prompt("Carbs (g)", type_converter=int, default=0)
+    checkin["fats"] = io.prompt("Fats (g)", type_converter=int, default=0)
+    checkin["protein"] = io.prompt("Protein (g)", type_converter=int, default=0)
+    checkin["fiber"] = io.prompt("Fiber (g)", type_converter=int, default=0)
+    checkin["weight"] = io.prompt("Weight (lbs)", type_converter=float, default=0.0)
+    checkin["steps"] = io.prompt("Steps", type_converter=int, default=0)
 
     # Cool down
-    did_cooldown = click.confirm(
-        style_question("Did you cool down today?".ljust(LABEL_WIDTH)), default=True
-    )
-    # Rewrite line with bold answer
-    cooldown_answer = "Yes" if did_cooldown else "No"
-    click.echo(
-        f"\033[A\033[K{style_question('Did you cool down today?'.ljust(LABEL_WIDTH))}: {click.style(cooldown_answer, bold=True, fg='yellow')}"
-    )
-    checkin["cool_down"] = did_cooldown
+    checkin["cool_down"] = io.confirm("Did you cool down today?", default=True)
 
-    # Add checkin to data
+    return checkin
+
+
+def _save_and_display_checkin(checkin, checkin_timestamp, data, config, dry_run, io=None):
+    """Save the completed checkin and display the weekly summary.
+
+    If ``io`` is provided (a non-CLI adapter), the weekly summary is also
+    forwarded to it as plain text after being displayed on the terminal.
+    """
+    import io as _io
+    import re
+    from contextlib import redirect_stdout
+
+    def _strip_ansi(text):
+        return re.sub(r'\033\[[0-9;]*[mK]', '', text)
+
     if dry_run:
-        click.echo(f"\n{click.style('🔍 DRY RUN - Check-in NOT saved:', fg='cyan', bold=True)}")
         import json
+        click.echo(f"\n{click.style('🔍 DRY RUN - Check-in NOT saved:', fg='cyan', bold=True)}")
         click.echo(click.style(json.dumps(checkin, indent=2, default=str), fg='cyan'))
+        return
+
+    if "checkins" not in data:
+        data["checkins"] = []
+    data["checkins"].append(checkin)
+    save_data(data)
+    click.echo(f"\n{style_success('✓ Check-in recorded successfully!')}")
+
+    checkins = data["checkins"]
+    weeks = calculate_weekly_summaries(checkins)
+    checkin_week_id = get_week_number(checkin_timestamp)
+
+    if checkin_week_id not in weeks:
+        return
+
+    week_data = weeks[checkin_week_id]
+    week_checkins = [
+        c for c in checkins
+        if get_week_number(datetime.fromisoformat(c["timestamp"])) == checkin_week_id
+    ]
+    week_data["session_count"] = len(week_checkins)
+
+    week_config = load_config_for_date(week_data["week_end"])
+    week_config_path = get_config_path_for_date(week_data["week_end"])
+    if week_config is None:
+        week_config = config
+        week_config_path = get_config_path()
+
+    week_header = format_week_header(
+        week_data["year"], week_data["week"], week_data["week_start"], week_data["week_end"]
+    )
+    is_current_week = checkin_week_id == get_week_number(datetime.now())
+
+    if week_data["session_count"] >= 7:
+        week_header_styled = click.style(week_header, fg="green", bold=True)
     else:
-        if "checkins" not in data:
-            data["checkins"] = []
-        data["checkins"].append(checkin)
-        save_data(data)
-        click.echo(f"\n{style_success('✓ Check-in recorded successfully!')}")
+        week_header_styled = f"\033[38;5;208m\033[1m{week_header}\033[0m"
+    click.echo(f"\n{week_header_styled}")
 
-        # Show updated weekly averages for the checkin's week
-        checkins = data["checkins"]
-        weeks = calculate_weekly_summaries(checkins)
+    goals_info = check_goals_for_week(week_data, week_checkins, week_config, is_current_week)
 
-        # Find the week this checkin belongs to
-        checkin_week_id = get_week_number(checkin_timestamp)
+    # Capture terminal output so we can forward a plain-text copy to Telegram.
+    buf = _io.StringIO()
+    with redirect_stdout(buf):
+        display_weekly_metrics(week_data, goals_info, week_config, None, False, is_current_week)
+    summary_output = buf.getvalue()
+    click.echo(summary_output, nl=False)
 
-        if checkin_week_id in weeks:
-            week_data = weeks[checkin_week_id]
-            year = week_data["year"]
-            week_num = week_data["week"]
-            week_start = week_data["week_start"]
-            week_end = week_data["week_end"]
+    if io is not None:
+        plain = _strip_ansi(f"{week_header}\n{summary_output}").strip()
+        io.info(f"📊 <b>Weekly Summary</b>\n<pre>{plain}</pre>")
 
-            # Count sessions for this week
-            week_checkins = [
-                c for c in checkins
-                if get_week_number(datetime.fromisoformat(c["timestamp"])) == checkin_week_id
-            ]
-            week_data["session_count"] = len(week_checkins)
 
-            # Load appropriate config for this week
-            week_config = load_config_for_date(week_end)
-            week_config_path = get_config_path_for_date(week_end)
-            if week_config is None:
-                week_config = config
-                week_config_path = get_config_path()
+@click.command()
+@click.option("--backfill", is_flag=True, help="Add a check-in for a previous day.")
+@click.option("--dry-run", is_flag=True, help="Preview check-in without saving to data file.")
+@click.option("--telegram", is_flag=True, help="Send check-in questions to your Telegram chat.")
+def checkin_command(backfill, dry_run, telegram):
+    """Start interactive mode to record your daily check-in values."""
+    config = load_config()
+    if not config:
+        click.echo(style_error("Error: Configuration not found. Please run 'toobuff init' first."))
+        sys.exit(1)
 
-            # Format and display week header
-            week_header = format_week_header(year, week_num, week_start, week_end)
-            current_week_id = get_week_number(datetime.now())
-            is_current_week = (checkin_week_id == current_week_id)
+    if telegram:
+        if backfill:
+            click.echo(style_error("Error: --telegram and --backfill cannot be used together."))
+            sys.exit(1)
+        from toobuff.telegram_checkin import run_telegram_checkin
+        run_telegram_checkin(config, dry_run=dry_run)
+        return
 
-            if week_data["session_count"] >= 7:
-                week_header_styled = click.style(week_header, fg="green", bold=True)
-            else:
-                week_header_styled = f"\033[38;5;208m\033[1m{week_header}\033[0m"
-            click.echo(f"\n{week_header_styled}")
+    data = load_data()
+    et_tz = pytz.timezone("US/Eastern")
 
-            # Check goals for this week
-            goals_info = check_goals_for_week(week_data, week_checkins, week_config, is_current_week)
+    if backfill:
+        date_str = aligned_prompt(
+            "Backfill date (Use DD, MM-DD, or YYYY-MM-DD)", CHECKIN_LABEL_WIDTH,
+            default="", show_default=False,
+        )
+        if not date_str:
+            click.echo(style_error("Date is required for backfill. Use DD, MM-DD, or YYYY-MM-DD format."))
+            sys.exit(1)
+        try:
+            backfill_date = parse_backfill_date(date_str)
+            checkin_timestamp = et_tz.localize(backfill_date)
+            click.echo(f"\n{style_heading('Daily Check-in (Backfill)')}")
+            timestamp_str = checkin_timestamp.strftime("%Y-%m-%d at %I:%M %p %Z")
+            click.echo(f"  {style_timestamp('Recording check-in for:')} {style_timestamp(timestamp_str)}\n")
+        except click.BadParameter as e:
+            click.echo(style_error(str(e)))
+            sys.exit(1)
+    else:
+        checkin_timestamp = datetime.now(et_tz)
+        click.echo(f"\n{style_heading('Daily Check-in')}")
+        timestamp_str = checkin_timestamp.strftime("%Y-%m-%d at %I:%M %p %Z")
+        click.echo(f"  {style_timestamp('Recording check-in for:')} {style_timestamp(timestamp_str)}\n")
 
-            # Display weekly metrics
-            display_weekly_metrics(week_data, goals_info, week_config, None, False, is_current_week)
+    checkin = collect_checkin(CliIO(), checkin_timestamp)
+    _save_and_display_checkin(checkin, checkin_timestamp, data, config, dry_run)
 
 
 @click.command()
