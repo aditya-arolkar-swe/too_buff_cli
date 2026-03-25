@@ -7,13 +7,12 @@ from typing import Optional, Tuple
 
 import requests
 
-from toobuff.config import get_config_dir
 
 RESPONSE_TIMEOUT = 300  # 5 minutes per question
 
 
 def get_env_path() -> Path:
-    return Path(get_config_dir()) / ".env"
+    return Path(__file__).parent.parent / ".env"
 
 
 def load_telegram_config() -> Tuple[str, str, Optional[str]]:
