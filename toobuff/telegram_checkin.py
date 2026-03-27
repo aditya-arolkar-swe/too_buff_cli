@@ -206,37 +206,3 @@ class TelegramIO:
         self._send(msg)
 
 
-def run_telegram_checkin(config: dict, dry_run: bool = False) -> None:
-    import click
-    import pytz
-    from datetime import datetime
-
-    from toobuff.commands import collect_checkin, _save_and_display_checkin
-    from toobuff.config import load_data
-
-    try:
-        bot_token, chat_id, thread_id = load_telegram_config()
-    except (FileNotFoundError, ValueError) as exc:
-        click.echo(click.style(f"Error: {exc}", fg="red", bold=True))
-        import sys
-        sys.exit(1)
-
-    et_tz = pytz.timezone("US/Eastern")
-    checkin_timestamp = datetime.now(et_tz)
-    timestamp_str = checkin_timestamp.strftime("%Y-%m-%d at %I:%M %p %Z")
-    data = load_data()
-
-    click.echo(click.style("Connecting to Telegram...", fg="cyan"))
-    io = TelegramIO(bot_token, chat_id, thread_id)
-
-    io.info(f"🏋️ <b>Too Buff Daily Check-in</b>\n📅 {timestamp_str}")
-    click.echo(click.style(
-        "✓ Check-in started in Telegram — answer the questions there.",
-        fg="green", bold=True,
-    ))
-
-    checkin = collect_checkin(io, checkin_timestamp)
-    _save_and_display_checkin(checkin, checkin_timestamp, data, config, dry_run, io=io)
-
-    if not dry_run:
-        io.info("✅ <b>Check-in recorded successfully!</b>")

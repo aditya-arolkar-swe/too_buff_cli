@@ -322,6 +322,19 @@ def parse_backfill_date(date_str: str) -> datetime:
         )
 
 
+def prompt_backfill_date(io, et_tz):
+    """Ask for a backfill date via the given IO adapter and return a localized datetime."""
+    while True:
+        date_str = io.prompt("Backfill date (DD, MM-DD, or YYYY-MM-DD)", show_default=False)
+        if not date_str:
+            io.error("Date is required. Use DD, MM-DD, or YYYY-MM-DD format.")
+            continue
+        try:
+            return et_tz.localize(parse_backfill_date(date_str))
+        except click.BadParameter as e:
+            io.error(str(e))
+
+
 def parse_block_day(block_str: str) -> tuple:
     """Parse a block day string like 'week 2 day 1' or 'w2d1'.
 
@@ -1627,42 +1640,41 @@ def checkin_command(backfill, dry_run, telegram):
         click.echo(style_error("Error: Configuration not found. Please run 'toobuff init' first."))
         sys.exit(1)
 
-    if telegram:
-        if backfill:
-            click.echo(style_error("Error: --telegram and --backfill cannot be used together."))
-            sys.exit(1)
-        from toobuff.telegram_checkin import run_telegram_checkin
-        run_telegram_checkin(config, dry_run=dry_run)
-        return
-
     data = load_data()
     et_tz = pytz.timezone("US/Eastern")
 
-    if backfill:
-        date_str = aligned_prompt(
-            "Backfill date (Use DD, MM-DD, or YYYY-MM-DD)", CHECKIN_LABEL_WIDTH,
-            default="", show_default=False,
-        )
-        if not date_str:
-            click.echo(style_error("Date is required for backfill. Use DD, MM-DD, or YYYY-MM-DD format."))
-            sys.exit(1)
+    if telegram:
+        from toobuff.telegram_checkin import TelegramIO, load_telegram_config
         try:
-            backfill_date = parse_backfill_date(date_str)
-            checkin_timestamp = et_tz.localize(backfill_date)
-            click.echo(f"\n{style_heading('Daily Check-in (Backfill)')}")
-            timestamp_str = checkin_timestamp.strftime("%Y-%m-%d at %I:%M %p %Z")
-            click.echo(f"  {style_timestamp('Recording check-in for:')} {style_timestamp(timestamp_str)}\n")
-        except click.BadParameter as e:
-            click.echo(style_error(str(e)))
+            bot_token, chat_id, thread_id = load_telegram_config()
+        except (FileNotFoundError, ValueError) as exc:
+            click.echo(style_error(str(exc)))
             sys.exit(1)
+        click.echo(click.style("Connecting to Telegram...", fg="cyan"))
+        io = TelegramIO(bot_token, chat_id, thread_id)
+    else:
+        io = CliIO()
+
+    if backfill:
+        checkin_timestamp = prompt_backfill_date(io, et_tz)
+        heading = "Daily Check-in (Backfill)"
     else:
         checkin_timestamp = datetime.now(et_tz)
-        click.echo(f"\n{style_heading('Daily Check-in')}")
-        timestamp_str = checkin_timestamp.strftime("%Y-%m-%d at %I:%M %p %Z")
+        heading = "Daily Check-in"
+
+    timestamp_str = checkin_timestamp.strftime("%Y-%m-%d at %I:%M %p %Z")
+    if telegram:
+        io.info(f"🏋️ <b>{heading}</b>\n📅 {timestamp_str}")
+        click.echo(click.style("✓ Check-in started in Telegram — answer the questions there.", fg="green", bold=True))
+    else:
+        click.echo(f"\n{style_heading(heading)}")
         click.echo(f"  {style_timestamp('Recording check-in for:')} {style_timestamp(timestamp_str)}\n")
 
-    checkin = collect_checkin(CliIO(), checkin_timestamp)
-    _save_and_display_checkin(checkin, checkin_timestamp, data, config, dry_run)
+    checkin = collect_checkin(io, checkin_timestamp)
+    _save_and_display_checkin(checkin, checkin_timestamp, data, config, dry_run, io=io if telegram else None)
+
+    if telegram and not dry_run:
+        io.info("✅ <b>Check-in recorded successfully!</b>")
 
 
 @click.command()
